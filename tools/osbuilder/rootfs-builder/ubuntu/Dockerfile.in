@@ -12,8 +12,20 @@ ENV RUSTUP_HOME="/opt/rustup"
 ENV CARGO_HOME="/opt/cargo"
 ENV PATH="/opt/cargo/bin/:/opt/go/bin:${PATH}"
 
+ARG FILE_DOWNLOAD_PROXY=""
+ARG GO_DOWNLOAD_BASE_URL="https://mirrors.aliyun.com/golang"
+ARG RUSTUP_DIST_SERVER="https://rsproxy.cn"
+ARG RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+ARG GOPROXY="https://goproxy.cn,direct"
+ARG GOSUMDB="sum.golang.google.cn"
+ARG PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
 ARG GO_VERSION
 ARG RUST_TOOLCHAIN
+ENV RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER}"
+ENV RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT}"
+ENV GOPROXY="${GOPROXY}"
+ENV GOSUMDB="${GOSUMDB}"
+ENV PIP_INDEX_URL="${PIP_INDEX_URL}"
 ENV PATH="/opt/go/bin:${PATH}"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -21,12 +33,22 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN mkdir ${RUSTUP_HOME} ${CARGO_HOME} ${GOCACHE} && \
     chmod -R a+rwX ${RUSTUP_HOME} ${CARGO_HOME} ${GO_HOME}
 
+RUN mkdir -p "${CARGO_HOME}" && \
+    cat > "${CARGO_HOME}/config.toml" <<'EOF'
+[source.crates-io]
+replace-with = "rsproxy-sparse"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+EOF
+
 # makedev tries to mknod from postinst
 RUN [ -x /usr/bin/systemd-detect-virt ] || ( echo "echo docker" >/usr/bin/systemd-detect-virt && chmod +x /usr/bin/systemd-detect-virt )
 # hadolint ignore=DL3009,SC2046
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive \
-    apt-get --no-install-recommends -y install \
+RUN apt_env(){ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY "$@"; } && \
+    curl_with_download_proxy(){ if [ -n "${FILE_DOWNLOAD_PROXY}" ]; then curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"; else curl "$@"; fi; } && \
+    apt_env apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt_env apt-get --no-install-recommends -y install \
     ca-certificates \
     curl \
     g++ \
@@ -53,10 +75,11 @@ RUN apt-get update && \
     libclang-dev \
     file \
     zstd && \
-    apt-get clean && rm -rf /var/lib/apt/lists/&& \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN}
+    apt_env apt-get clean && rm -rf /var/lib/apt/lists/ && \
+    curl_with_download_proxy --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN}
 
-RUN ARCH=$(uname -m); \
+RUN curl_with_download_proxy(){ if [ -n "${FILE_DOWNLOAD_PROXY}" ]; then curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"; else curl "$@"; fi; } && \
+    ARCH=$(uname -m); \
     goarch=""; \
     kernelname=$(uname -s | tr '[:upper:]' '[:lower:]'); \
     case "${ARCH}" in \
@@ -66,7 +89,7 @@ RUN ARCH=$(uname -m); \
         "s390x") goarch=${ARCH} ;; \
         *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
     esac; \
-    curl -fsSOL "https://go.dev/dl/go${GO_VERSION}.${kernelname}-${goarch}.tar.gz" && \
+    curl_with_download_proxy -fsSOL "${GO_DOWNLOAD_BASE_URL}/go${GO_VERSION}.${kernelname}-${goarch}.tar.gz" && \
     tar -C "${GO_HOME}" -xzf "go${GO_VERSION}.${kernelname}-${goarch}.tar.gz" && \
     rm "go${GO_VERSION}.${kernelname}-${goarch}.tar.gz"
 
@@ -88,17 +111,18 @@ RUN ARCH=$(uname -m); \
 RUN pip install --no-cache-dir pyinstaller==6.9.0 || pip install --no-cache-dir pyinstaller==6.9.0 --break-system-packages
 
 # pin cosign to 3.0.2
-RUN ARCH=$(uname -m); \
+RUN curl_with_download_proxy(){ if [ -n "${FILE_DOWNLOAD_PROXY}" ]; then curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"; else curl "$@"; fi; } && \
+    ARCH=$(uname -m); \
 	cosign_arch=""; \
 	case "${ARCH}" in \
 		"aarch64") cosign_arch="arm64" ;; \
 		"x86_64") cosign_arch="amd64" ;; \
 		*) echo "Unsupported architecture for cosign: ${ARCH}" && exit 0 ;; \
 	esac; \
-	curl -O -L "https://github.com/sigstore/cosign/releases/download/v3.0.2/cosign_3.0.2_${cosign_arch}.deb" && \
+	curl_with_download_proxy -O -L "https://github.com/sigstore/cosign/releases/download/v3.0.2/cosign_3.0.2_${cosign_arch}.deb" && \
 	# In order to avoid the chicken-egg problem of the need of cosign to verify the cosign binary, \
 	# let's verify the checksum instead. \
-	curl -O -L "https://github.com/sigstore/cosign/releases/download/v3.0.2/cosign_checksums.txt" && \
+	curl_with_download_proxy -O -L "https://github.com/sigstore/cosign/releases/download/v3.0.2/cosign_checksums.txt" && \
 	grep -F ${cosign_arch}.deb cosign_checksums.txt | sha256sum --check - && \
 	dpkg -i "cosign_3.0.2_${cosign_arch}.deb" && \
 	rm -f "cosign_3.0.2_${cosign_arch}.deb"* cosign_checksum*.txt

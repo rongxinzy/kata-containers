@@ -18,7 +18,7 @@ tool="${1}"
 container_image="${TOOLS_CONTAINER_BUILDER:-$(get_tools_image_name)}"
 [ "${CROSS_BUILD}" == "true" ] && container_image="${container_image}-cross-build"
 
-docker pull ${container_image} || \
+ensure_builder_image "${container_image}" || \
 	(docker $BUILDX build $PLATFORM \
 	    	--build-arg GO_TOOLCHAIN="$(get_from_kata_deps ".languages.golang.meta.newest-version")" \
 	    	--build-arg RUST_TOOLCHAIN="$(get_from_kata_deps ".languages.rust.meta.newest-version")" \

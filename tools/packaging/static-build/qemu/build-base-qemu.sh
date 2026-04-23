@@ -54,7 +54,7 @@ CACHE_TIMEOUT=$(date +"%Y-%m-%d")
 container_image="${QEMU_CONTAINER_BUILDER:-$(get_qemu_image_name)}"
 [[ "${CROSS_BUILD}" == "true" ]] && container_image="${container_image}-cross-build"
 
-"${container_engine}" pull "${container_image}" || ("${container_engine}" build \
+ensure_builder_image "${container_image}" "${container_engine}" || ("${container_engine}" build \
 	--build-arg CACHE_TIMEOUT="${CACHE_TIMEOUT}" \
 	--build-arg http_proxy="${http_proxy}" \
 	--build-arg https_proxy="${https_proxy}" \
@@ -81,4 +81,3 @@ container_image="${QEMU_CONTAINER_BUILDER:-$(get_qemu_image_name)}"
 	-v "${repo_root_dir}:${repo_root_dir}" \
 	-v "${PWD}":/share "${container_image}" \
 	bash -c "${qemu_builder}"
-

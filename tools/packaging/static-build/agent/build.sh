@@ -15,8 +15,9 @@ source "${script_dir}/../../scripts/lib.sh"
 
 container_image="${AGENT_CONTAINER_BUILDER:-$(get_agent_image_name)}"
 [ "${CROSS_BUILD}" == "true" ] && container_image="${container_image}-cross-build"
+github_proxy="${GITHUB_PROXY:-${FILE_DOWNLOAD_PROXY:-}}"
 
-docker pull ${container_image} || \
+ensure_builder_image "${container_image}" || \
 	(docker $BUILDX build $PLATFORM \
 	    	--build-arg RUST_TOOLCHAIN="$(get_from_kata_deps ".languages.rust.meta.newest-version")" \
 		-t "${container_image}" "${script_dir}" && \
@@ -36,6 +37,9 @@ docker run --rm -i -v "${repo_root_dir}:${repo_root_dir}" \
 	--env PUSH_TO_REGISTRY="${PUSH_TO_REGISTRY:-no}" \
 	--env GH_TOKEN="${GH_TOKEN:-}" \
 	--env GITHUB_ACTOR="${GITHUB_ACTOR:-}" \
+	--env GITHUB_PROXY="${github_proxy}" \
+	--env CARGO_NET_GIT_FETCH_WITH_CLI="${CARGO_NET_GIT_FETCH_WITH_CLI:-true}" \
+	--env HOME="/tmp" \
 	-w "${repo_root_dir}" \
 	--user "$(id -u)":"$(id -g)" \
 	"${container_image}" \

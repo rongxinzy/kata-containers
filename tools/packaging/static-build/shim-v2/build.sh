@@ -62,7 +62,7 @@ for entry in "${verity_variants[@]}"; do
 	EXTRA_OPTS+=" ${param_var}=${root_measure_config}"
 done
 
-docker pull ${container_image} || \
+ensure_builder_image "${container_image}" || \
 	(docker ${BUILDX} build ${PLATFORM}  \
 		--build-arg GO_VERSION="${GO_VERSION}" \
 		--build-arg RUST_VERSION="${RUST_VERSION}" \

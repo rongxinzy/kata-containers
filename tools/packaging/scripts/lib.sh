@@ -33,6 +33,18 @@ install_yq() {
 	popd
 }
 
+ensure_builder_image() {
+	local image="${1}"
+	local container_engine="${2:-docker}"
+
+	if "${container_engine}" image inspect "${image}" >/dev/null 2>&1; then
+		info "Using local builder image ${image}"
+		return 0
+	fi
+
+	"${container_engine}" pull "${image}"
+}
+
 get_from_kata_deps() {
 	local dependency="$1"
 	versions_file="${this_script_dir}/../../../versions.yaml"
