@@ -2,12 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM ubuntu:22.04
+ARG IMAGE_REGISTRY=docker.io
+FROM ${IMAGE_REGISTRY}/ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV INSTALL_IN_GOPATH=false
 # Required for libxml2-dev
 ENV TZ=Etc/UTC
 ARG ARCH
+ARG FILE_DOWNLOAD_PROXY=""
+ENV FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY}"
 
 COPY install_yq.sh /usr/bin/install_yq.sh
 COPY install_oras.sh /usr/bin/install_oras.sh
@@ -15,8 +18,9 @@ COPY install_oras.sh /usr/bin/install_oras.sh
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install yq, oras, and docker
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt_env(){ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY "$@"; } && \
+    apt_env apt-get update && \
+    apt_env apt-get install -y --no-install-recommends \
         ca-certificates \
         docker.io \
         curl \
@@ -24,7 +28,7 @@ RUN apt-get update && \
         git \
         wget \
         sudo && \
-    apt-get clean && rm -rf /var/lib/apt/lists/ && \
+    apt_env apt-get clean && rm -rf /var/lib/apt/lists/ && \
     install_yq.sh && \
     install_oras.sh
 
@@ -48,8 +52,9 @@ RUN if [ "${ARCH}" != "$(uname -m)" ] && [ "${ARCH}" == "s390x" ]; then sed -i '
     echo "deb [arch=s390x] http://ports.ubuntu.com/ jammy-updates main multiverse universe" >> /etc/apt/sources.list; fi
 
 #FIXME: gcc is required as agent is build out of a container build.
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
+RUN apt_env(){ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY "$@"; } && \
+    apt_env apt-get update && \
+    apt_env apt-get install --no-install-recommends -y \
     build-essential \
     cpio \
     gcc \
@@ -60,7 +65,7 @@ RUN apt-get update && \
     xz-utils \
     zstd && \
     if [ "${ARCH}" != "$(uname -m)" ] && [ "${ARCH}" == "s390x" ]; then \
-        apt-get install -y --no-install-recommends \
+        apt_env apt-get install -y --no-install-recommends \
         gcc-s390x-linux-gnu \
         g++-s390x-linux-gnu \
         binutils-s390x-linux-gnu \
@@ -74,8 +79,8 @@ RUN apt-get update && \
         libjson-c-dev:s390x \
         libglib2.0-0:s390x \
         libglib2.0-dev:s390x; \
-    elif uname -m | grep -Eq 's390x'; then apt-get install -y s390-tools; fi && \
-    apt-get clean && rm -rf /var/lib/apt/lists
+    elif uname -m | grep -Eq 's390x'; then apt_env apt-get install -y s390-tools; fi && \
+    apt_env apt-get clean && rm -rf /var/lib/apt/lists
 
 RUN if [ "${ARCH}" != "$(uname -m)" ] && [ "${ARCH}" == "s390x" ]; then \
         git clone -b v2.25.0 https://github.com/ibm-s390-linux/s390-tools.git && cd s390-tools && \

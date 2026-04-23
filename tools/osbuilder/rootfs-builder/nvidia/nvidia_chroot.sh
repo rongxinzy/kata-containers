@@ -25,7 +25,20 @@ cuda_repo_pkg="${5:?cuda_repo_pkg not specified}"
 tools_repo_url="${6:?tools_repo_url not specified}"
 tools_repo_pkg="${7:?tools_repo_pkg not specified}"
 ctk_version="${8:?ctk_version not specified}"
-APT_INSTALL="apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' -yqq --no-install-recommends install"
+
+apt_env() {
+	env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY "$@"
+}
+
+curl_with_download_proxy() {
+	if [ -n "${FILE_DOWNLOAD_PROXY:-}" ]; then
+		curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"
+	else
+		curl "$@"
+	fi
+}
+
+APT_INSTALL="apt_env apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' -yqq --no-install-recommends install"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -47,7 +60,7 @@ install_nvidia_fabricmanager() {
 	}
 	echo "chroot: Install NVIDIA fabricmanager"
 	eval "${APT_INSTALL}" nvidia-fabricmanager libnvidia-nscq nvlsm
-	apt-mark hold nvidia-fabricmanager libnvidia-nscq nvlsm
+	apt_env apt-mark hold nvidia-fabricmanager libnvidia-nscq nvlsm
 }
 
 install_userspace_components() {
@@ -63,7 +76,7 @@ install_userspace_components() {
 		libnvidia-decode libnvidia-fbc1 libnvidia-encode \
 		libnvidia-nscq libnvidia-compute nvidia-settings
 
-	apt-mark hold nvidia-imex nvidia-firmware            \
+	apt_env apt-mark hold nvidia-imex nvidia-firmware            \
 		libnvidia-cfg1 libnvidia-gl libnvidia-extra      \
 		libnvidia-decode libnvidia-fbc1 libnvidia-encode \
 		libnvidia-nscq libnvidia-compute nvidia-settings
@@ -72,7 +85,7 @@ install_userspace_components() {
 	eval "${APT_INSTALL}" cryptsetup-bin dmsetup         \
 		libargon2-1 e2fsprogs libxml2
 
-	apt-mark hold cryptsetup-bin dmsetup libargon2-1     \
+	apt_env apt-mark hold cryptsetup-bin dmsetup libargon2-1     \
 		e2fsprogs libxml2
 }
 
@@ -109,11 +122,11 @@ setup_apt_repositories() {
 	CHROOT_EOF
 
 	# Tools repository is always needed for toolkit, DCGM and other helpers
-	curl -fsSL -O "${tools_repo_url}/${tools_repo_pkg}"
+	curl_with_download_proxy -fsSL -O "${tools_repo_url}/${tools_repo_pkg}"
 	dpkg -i "${tools_repo_pkg}" && rm -f "${tools_repo_pkg}"
 
 	# Remote or local CUDA repository
-	curl -fsSL -O "${cuda_repo_url}/${cuda_repo_pkg}"
+	curl_with_download_proxy -fsSL -O "${cuda_repo_url}/${cuda_repo_pkg}"
 	dpkg -i "${cuda_repo_pkg}" && rm -f "${cuda_repo_pkg}"
 
 	# Copy keyring if local repo was installed
@@ -140,7 +153,7 @@ setup_apt_repositories() {
 		Pin-Priority: 900
 	CHROOT_EOF
 
-	apt update
+	apt_env apt update
 }
 
 install_nvidia_dcgm() {
@@ -164,17 +177,17 @@ install_devkit_packages() {
 	echo "chroot: Install devkit packages"
 
 	eval "${APT_INSTALL}" kmod
-	apt-mark hold kmod
+	apt_env apt-mark hold kmod
 }
 
 cleanup_rootfs() {
 	echo "chroot: Cleanup NVIDIA GPU rootfs"
 
-	apt-mark hold libstdc++6 libzstd1 libgnutls30t64 pciutils linuxptp libnftnl11
-	apt autoremove -yqq
+	apt_env apt-mark hold libstdc++6 libzstd1 libgnutls30t64 pciutils linuxptp libnftnl11
+	apt_env apt autoremove -yqq
 
-	apt clean
-	apt autoclean
+	apt_env apt clean
+	apt_env apt autoclean
 
 	rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/apt /var/cache/debconf
 	rm -f /etc/apt/sources.list

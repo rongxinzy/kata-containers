@@ -18,6 +18,14 @@ uid=$(id -u ${USER})
 gid=$(id -g ${USER})
 http_proxy="${http_proxy:-}"
 https_proxy="${https_proxy:-}"
+FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY:-}"
+GO_DOWNLOAD_BASE_URL="${GO_DOWNLOAD_BASE_URL:-}"
+RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-}"
+RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-}"
+GOPROXY="${GOPROXY:-}"
+GOSUMDB="${GOSUMDB:-}"
+PIP_INDEX_URL="${PIP_INDEX_URL:-}"
+IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 
 ARCH=${ARCH:-$(uname -m)}
 CROSS_BUILD=
@@ -75,6 +83,8 @@ docker build -q -t build-kata-deploy \
 	--build-arg GID=${gid} \
 	--build-arg http_proxy="${http_proxy}" \
 	--build-arg https_proxy="${https_proxy}" \
+	--build-arg FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY}" \
+	--build-arg IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
 	--build-arg HOST_DOCKER_GID=${docker_gid} \
 	--build-arg ARCH="${ARCH}" \
 	"${script_dir}/dockerbuild/"
@@ -146,6 +156,14 @@ docker run \
 	--env USE_CACHE="${USE_CACHE}" \
 	--env BUSYBOX_CONF_FILE="${BUSYBOX_CONF_FILE}" \
 	--env NVIDIA_GPU_STACK="${NVIDIA_GPU_STACK}" \
+	--env FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY}" \
+	--env GO_DOWNLOAD_BASE_URL="${GO_DOWNLOAD_BASE_URL}" \
+	--env RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER}" \
+	--env RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT}" \
+	--env GOPROXY="${GOPROXY}" \
+	--env GOSUMDB="${GOSUMDB}" \
+	--env PIP_INDEX_URL="${PIP_INDEX_URL}" \
+	--env IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
 	--env KBUILD_SIGN_PIN="${KBUILD_SIGN_PIN}" \
 	--env GUEST_HOOKS_TARBALL_NAME="${GUEST_HOOKS_TARBALL_NAME}" \
 	--env EXTRA_PKGS="${EXTRA_PKGS}" \

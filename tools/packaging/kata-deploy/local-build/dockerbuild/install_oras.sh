@@ -11,6 +11,14 @@ set -o pipefail
 
 install_dest="/usr/local/bin"
 
+curl_with_download_proxy() {
+	if [[ -n "${FILE_DOWNLOAD_PROXY:-}" ]]; then
+		curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"
+	else
+		curl "$@"
+	fi
+}
+
 function get_installed_oras_version() {
 	oras version | grep Version | sed -e s/Version:// | tr -d [:blank:]
 }
@@ -37,7 +45,7 @@ fi
 oras_tarball="oras_${oras_required_version#v}_linux_${arch}.tar.gz"
 
 echo "Downloading ORAS ${oras_required_version}"
-curl -OL https://github.com/oras-project/oras/releases/download/${oras_required_version}/${oras_tarball}
+curl_with_download_proxy -OL https://github.com/oras-project/oras/releases/download/${oras_required_version}/${oras_tarball}
 
 echo "Installing ORAS to ${install_dest}"
 sudo mkdir -p "${install_dest}"

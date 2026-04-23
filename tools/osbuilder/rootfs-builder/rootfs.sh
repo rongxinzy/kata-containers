@@ -487,6 +487,13 @@ build_rootfs_distro()
 			${engine_build_args} \
 			--build-arg http_proxy="${http_proxy}" \
 			--build-arg https_proxy="${https_proxy}" \
+			--build-arg FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY:-}" \
+			--build-arg GO_DOWNLOAD_BASE_URL="${GO_DOWNLOAD_BASE_URL:-https://mirrors.aliyun.com/golang}" \
+			--build-arg RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-https://rsproxy.cn}" \
+			--build-arg RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://rsproxy.cn/rustup}" \
+			--build-arg GOPROXY="${GOPROXY:-https://goproxy.cn,direct}" \
+			--build-arg GOSUMDB="${GOSUMDB:-sum.golang.google.cn}" \
+			--build-arg PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}" \
 			--build-arg RUST_TOOLCHAIN="$(get_package_version_from_kata_yaml  "languages.rust.meta.newest-version")" \
 			--build-arg GO_VERSION="$(get_package_version_from_kata_yaml  "languages.golang.version")" \
 			-t "${image_name}" "${distro_config_dir}"
@@ -556,6 +563,12 @@ build_rootfs_distro()
 		"$container_engine" run  \
 			--env https_proxy="${https_proxy}" \
 			--env http_proxy="${http_proxy}" \
+			--env FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY:-}" \
+			--env GOPROXY="${GOPROXY:-https://goproxy.cn,direct}" \
+			--env GOSUMDB="${GOSUMDB:-sum.golang.google.cn}" \
+			--env RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-https://rsproxy.cn}" \
+			--env RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://rsproxy.cn/rustup}" \
+			--env PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}" \
 			--env AGENT_VERSION="${AGENT_VERSION}" \
 			--env ROOTFS_DIR="/rootfs" \
 			--env AGENT_BIN="${AGENT_BIN}" \

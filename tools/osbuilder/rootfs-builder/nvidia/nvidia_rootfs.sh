@@ -39,6 +39,14 @@ fi
 
 readonly stage_one="${BUILD_DIR:?}/rootfs-${BUILD_VARIANT:?}-stage-one"
 
+curl_with_download_proxy() {
+	if [ -n "${FILE_DOWNLOAD_PROXY:-}" ]; then
+		curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"
+	else
+		curl "$@"
+	fi
+}
+
 setup_nvidia-nvrc() {
 	local url ver
 	local nvrc=NVRC-${machine_arch}-unknown-linux-musl
@@ -46,9 +54,9 @@ setup_nvidia-nvrc() {
 	ver=$(get_package_version_from_kata_yaml "externals.nvrc.version")
 
 	local dl="${url}/${ver}"
-	curl -fsSL -o "${BUILD_DIR}/${nvrc}.tar.xz" "${dl}/${nvrc}.tar.xz"
-	curl -fsSL -o "${BUILD_DIR}/${nvrc}.tar.xz.sig" "${dl}/${nvrc}.tar.xz.sig"
-	curl -fsSL -o "${BUILD_DIR}/${nvrc}.tar.xz.cert" "${dl}/${nvrc}.tar.xz.cert"
+	curl_with_download_proxy -fsSL -o "${BUILD_DIR}/${nvrc}.tar.xz" "${dl}/${nvrc}.tar.xz"
+	curl_with_download_proxy -fsSL -o "${BUILD_DIR}/${nvrc}.tar.xz.sig" "${dl}/${nvrc}.tar.xz.sig"
+	curl_with_download_proxy -fsSL -o "${BUILD_DIR}/${nvrc}.tar.xz.cert" "${dl}/${nvrc}.tar.xz.cert"
 
 	local id="^https://github.com/NVIDIA/nvrc/.github/workflows/.+@refs/heads/main$"
 	local oidc="https://token.actions.githubusercontent.com"
@@ -120,7 +128,7 @@ setup_nvidia_gpu_rootfs_stage_one() {
 	popd  >> /dev/null
 
 	pushd "${BUILD_DIR}" >> /dev/null
-	curl -LO "https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-${distro_arch}_linux.tar.xz"
+	curl_with_download_proxy -LO "https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-${distro_arch}_linux.tar.xz"
 	tar xvf "upx-4.2.4-${distro_arch}_linux.tar.xz"
 	popd  >> /dev/null
 }

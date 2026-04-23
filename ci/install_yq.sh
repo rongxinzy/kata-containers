@@ -14,6 +14,14 @@ die() {
 	exit 1
 }
 
+curl_with_download_proxy() {
+	if [[ -n "${FILE_DOWNLOAD_PROXY:-}" ]]; then
+		curl --proxy "${FILE_DOWNLOAD_PROXY}" "$@"
+	else
+		curl "$@"
+	fi
+}
+
 function verify_yq_exists() {
 	local yq_path=$1
 	local yq_version=$2
@@ -107,7 +115,11 @@ function install_yq() {
 
 	## NOTE: ${var,,} => gives lowercase value of var
 	local yq_url="https://${yq_pkg}/releases/download/${yq_version}/yq_${goos}_${goarch}"
-	${precmd} curl -o "${yq_path}" -LSsf "${yq_url}" || die "Download ${yq_url} failed"
+	if [[ -n "${precmd}" ]]; then
+		${precmd} env FILE_DOWNLOAD_PROXY="${FILE_DOWNLOAD_PROXY:-}" bash -c "$(declare -f curl_with_download_proxy); curl_with_download_proxy -o \"${0}\" -LSsf \"${1}\"" "${yq_path}" "${yq_url}" || die "Download ${yq_url} failed"
+	else
+		curl_with_download_proxy -o "${yq_path}" -LSsf "${yq_url}" || die "Download ${yq_url} failed"
+	fi
 	${precmd} chmod +x "${yq_path}"
 
 	if ! command -v "${yq_path}" >/dev/null; then
