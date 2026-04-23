@@ -708,10 +708,12 @@ func (q *qemuArchBase) appendVFIODevice(devices []govmmQemu.Device, vfioDev conf
 
 	devices = append(devices,
 		govmmQemu.VFIODevice{
-			BDF:      vfioDev.BDF,
-			VendorID: vfioDev.VendorID,
-			DeviceID: vfioDev.DeviceID,
-			Bus:      vfioDev.Bus,
+			BDF:           vfioDev.BDF,
+			VendorID:      vfioDev.VendorID,
+			DeviceID:      vfioDev.DeviceID,
+			Bus:           vfioDev.Bus,
+			Addr:          vfioDev.Addr,
+			MultiFunction: vfioDev.MultiFunction,
 		},
 	)
 
