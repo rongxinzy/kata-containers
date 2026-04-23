@@ -34,7 +34,7 @@ nvat_version="${nvat_version:-}"
 container_image="${COCO_GUEST_COMPONENTS_CONTAINER_BUILDER:-$(get_coco_guest_components_image_name)}"
 [ "${CROSS_BUILD}" == "true" ] && container_image="${container_image}-cross-build"
 
-docker pull ${container_image} || \
+ensure_builder_image "${container_image}" || \
 	(docker $BUILDX build $PLATFORM \
 	    	--build-arg RUST_TOOLCHAIN="${coco_guest_components_toolchain}" \
 		--build-arg NVAT_VERSION="${nvat_version}" \

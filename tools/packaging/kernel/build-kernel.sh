@@ -492,17 +492,25 @@ setup_kernel() {
 	)
 
 	info "Fetching NVIDIA driver source code"
-	if [[ "${gpu_vendor}" == "${VENDOR_NVIDIA}" ]]; then
-		driver_version=$(get_from_kata_deps .externals.nvidia.driver.version)
-		driver_url=$(get_from_kata_deps .externals.nvidia.driver.url)
-		driver_src="open-gpu-kernel-modules-${driver_version}"
+		if [[ "${gpu_vendor}" == "${VENDOR_NVIDIA}" ]]; then
+			driver_version=$(get_from_kata_deps .externals.nvidia.driver.version)
+			driver_url=$(get_from_kata_deps .externals.nvidia.driver.url)
+			driver_src="open-gpu-kernel-modules-${driver_version}"
+			driver_tarball="${driver_version}.tar.gz"
+			driver_cache_dir="${NVIDIA_DRIVER_CACHE_DIR:-${repo_root_dir}/tools/packaging/kernel/cache/nvidia}"
+			driver_cached_tarball="${driver_cache_dir}/${driver_tarball}"
 
-		info "Downloading NVIDIA driver source code from: ${driver_url}${driver_version}.tar.gz"
-		[[ -d "${driver_src}" ]] && rm -rf "${driver_src}"
-		curl -L -o "${driver_version}.tar.gz" "${driver_url}${driver_version}.tar.gz"
-		tar -xvf "${driver_version}.tar.gz" --transform "s|open-gpu-kernel-modules-${driver_version}|open-gpu-kernel-modules|"
-	fi
-}
+			info "Downloading NVIDIA driver source code from: ${driver_url}${driver_version}.tar.gz"
+			[[ -d "${driver_src}" ]] && rm -rf "${driver_src}"
+			if [[ -f "${driver_cached_tarball}" ]]; then
+				info "Using cached NVIDIA driver source tarball: ${driver_cached_tarball}"
+				cp "${driver_cached_tarball}" "${driver_tarball}"
+			else
+				curl -L -o "${driver_tarball}" "${driver_url}${driver_tarball}"
+			fi
+			tar -xvf "${driver_tarball}" --transform "s|open-gpu-kernel-modules-${driver_version}|open-gpu-kernel-modules|"
+		fi
+	}
 
 build_kernel() {
 	local kernel_path=${1:-}

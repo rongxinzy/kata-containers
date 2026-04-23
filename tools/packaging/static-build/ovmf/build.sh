@@ -57,7 +57,7 @@ fi
 [ -n "$ovmf_package" ] || die "failed to get ovmf package or commit"
 [ -n "$package_output_dir" ] || die "failed to get ovmf package or commit"
 
-docker pull ${container_image} || \
+ensure_builder_image "${container_image}" || \
 	(docker build -t "${container_image}" "${script_dir}" && \
 	# No-op unless PUSH_TO_REGISTRY is exported as "yes"
 	push_to_registry "${container_image}")
