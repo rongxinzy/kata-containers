@@ -2010,6 +2010,7 @@ func (vfioDev VFIODevice) QemuParams(config *Config) []string {
 		if vfioDev.DeviceID != "" {
 			deviceParams = append(deviceParams, fmt.Sprintf("x-pci-device-id=%s", vfioDev.DeviceID))
 		}
+		deviceParams = append(deviceParams, "rombar=0")
 		if vfioDev.ROMFile != "" {
 			deviceParams = append(deviceParams, fmt.Sprintf("romfile=%s", vfioDev.ROMFile))
 		}

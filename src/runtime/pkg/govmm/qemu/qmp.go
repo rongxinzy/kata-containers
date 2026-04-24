@@ -1202,6 +1202,7 @@ func (q *QMP) ExecuteVFIODeviceAdd(ctx context.Context, devID, bdf, bus, romfile
 		"id":      devID,
 		"driver":  driver,
 		"host":    bdf,
+		"rombar":  0,
 		"romfile": romfile,
 	}
 	if bus != "" {
@@ -1232,6 +1233,7 @@ func (q *QMP) ExecutePCIVFIODeviceAdd(ctx context.Context, devID, bdf, addr, bus
 		"driver":  VfioPCI,
 		"host":    bdf,
 		"addr":    addr,
+		"rombar":  0,
 		"romfile": romfile,
 	}
 
