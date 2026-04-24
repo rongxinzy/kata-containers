@@ -17,8 +17,9 @@ import (
 var MockHybridVSockPath = "/tmp/kata-mock-hybrid-vsock.socket"
 
 type mockHypervisor struct {
-	config  HypervisorConfig
-	mockPid int
+	config       HypervisorConfig
+	mockPid      int
+	addedDevices []interface{}
 }
 
 func (m *mockHypervisor) Capabilities(ctx context.Context) types.Capabilities {
@@ -65,6 +66,7 @@ func (m *mockHypervisor) SaveVM() error {
 }
 
 func (m *mockHypervisor) AddDevice(ctx context.Context, devInfo interface{}, devType DeviceType) error {
+	m.addedDevices = append(m.addedDevices, devInfo)
 	return nil
 }
 

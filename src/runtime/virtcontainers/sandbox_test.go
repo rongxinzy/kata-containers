@@ -113,6 +113,29 @@ func TestCreateMockSandbox(t *testing.T) {
 	defer cleanUp()
 }
 
+func TestAppendDeviceVFIOAppendsAllFunctions(t *testing.T) {
+	hypervisor := &mockHypervisor{}
+	sandbox := &Sandbox{hypervisor: hypervisor}
+
+	device := &drivers.VFIODevice{
+		VfioDevs: []*config.VFIODev{
+			{BDF: "0000:01:00.0"},
+			{BDF: "0000:01:00.1"},
+		},
+	}
+
+	err := sandbox.AppendDevice(context.Background(), device)
+	assert.NoError(t, err)
+	if assert.Len(t, hypervisor.addedDevices, 2) {
+		first, ok := hypervisor.addedDevices[0].(config.VFIODev)
+		assert.True(t, ok)
+		second, ok := hypervisor.addedDevices[1].(config.VFIODev)
+		assert.True(t, ok)
+		assert.Equal(t, "0000:01:00.0", first.BDF)
+		assert.Equal(t, "0000:01:00.1", second.BDF)
+	}
+}
+
 func TestCalculateSandboxCPUs(t *testing.T) {
 	sandbox := &Sandbox{}
 	sandbox.config = &SandboxConfig{}
