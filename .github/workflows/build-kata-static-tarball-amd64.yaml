@@ -1,5 +1,8 @@
 name: CI | Build kata-static tarball for amd64
 on:
+  push:
+    branches:
+      - release-3.29.0-patch-p2p
   workflow_call:
     inputs:
       stage:
@@ -98,6 +101,7 @@ jobs:
           # store-artifact does not work with symlink
           mkdir -p kata-build && cp "${build_dir}"/kata-static-"${KATA_ASSET}"*.tar.* kata-build/.
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KATA_ASSET: ${{ matrix.asset }}
           TAR_OUTPUT: ${{ matrix.asset }}.tar.gz
           PUSH_TO_REGISTRY: ${{ inputs.push-to-registry }}
