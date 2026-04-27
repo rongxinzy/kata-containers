@@ -428,6 +428,47 @@ get_config_version() {
 	fi
 }
 
+download_github_release_asset() {
+	local download_url="${1:?download URL not provided}"
+	local output_file="${2:?output file not provided}"
+
+	if [[ "${download_url}" =~ ^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/]+)$ ]] && [[ -n "${GITHUB_TOKEN:-}" ]]; then
+		local owner="${BASH_REMATCH[1]}"
+		local repo="${BASH_REMATCH[2]}"
+		local tag="${BASH_REMATCH[3]}"
+		local asset_name="${BASH_REMATCH[4]}"
+		local release_api_url="https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}"
+		local asset_api_url
+
+		asset_api_url=$(curl --fail -LsS \
+			-H "Authorization: Bearer ${GITHUB_TOKEN}" \
+			-H "Accept: application/vnd.github+json" \
+			-H "X-GitHub-Api-Version: 2022-11-28" \
+			"${release_api_url}" | python3 -c '
+import json
+import sys
+
+asset_name = sys.argv[1]
+release = json.load(sys.stdin)
+for asset in release.get("assets", []):
+    if asset.get("name") == asset_name:
+        print(asset["url"])
+        break
+else:
+    sys.exit(f"release asset not found: {asset_name}")
+' "${asset_name}") || die "Failed to resolve GitHub release asset ${asset_name}"
+
+		curl --fail -LsS \
+			-H "Authorization: Bearer ${GITHUB_TOKEN}" \
+			-H "Accept: application/octet-stream" \
+			-H "X-GitHub-Api-Version: 2022-11-28" \
+			-o "${output_file}" \
+			"${asset_api_url}"
+	else
+		curl --fail -LsS -o "${output_file}" "${download_url}"
+	fi
+}
+
 setup_kernel() {
 	local kernel_path=${1:-}
 	[ -n "${kernel_path}" ] || die "kernel_path not provided"
@@ -493,18 +534,26 @@ setup_kernel() {
 
 	info "Fetching NVIDIA driver source code"
 	if [[ "${gpu_vendor}" == "${VENDOR_NVIDIA}" ]]; then
+		local driver_version
+		local driver_url
+		local driver_src
+		local driver_tarball
+		local driver_download_url
+
 		driver_version=$(get_from_kata_deps .externals.nvidia.driver.version)
 		driver_url=$(get_from_kata_deps .externals.nvidia.driver.url)
 		driver_src="open-gpu-kernel-modules-${driver_version}"
+		driver_tarball="${driver_version}.tar.gz"
+		driver_download_url="${driver_url}${driver_tarball}"
 
-		info "Downloading NVIDIA driver source code from: ${driver_url}${driver_version}.tar.gz"
+		info "Downloading NVIDIA driver source code from: ${driver_download_url}"
 		[[ -d "${driver_src}" ]] && rm -rf "${driver_src}"
-		curl -L --location-trusted -o "${driver_version}.tar.gz" -H "Authorization: token ${GITHUB_TOKEN:-}" "${driver_url}${driver_version}.tar.gz"
+		download_github_release_asset "${driver_download_url}" "${driver_tarball}"
 		# Verify the downloaded file is a valid tar.gz
-		if [[ ! -s "${driver_version}.tar.gz" ]] || [[ $(file -b --mime-type "${driver_version}.tar.gz" 2>/dev/null) != "application/gzip" ]]; then
+		if [[ ! -s "${driver_tarball}" ]] || [[ $(file -b --mime-type "${driver_tarball}" 2>/dev/null) != "application/gzip" ]]; then
 			die "Failed to download NVIDIA driver source. Check GITHUB_TOKEN and release asset URL."
 		fi
-		tar -xvf "${driver_version}.tar.gz" --transform "s|open-gpu-kernel-modules-${driver_version}|open-gpu-kernel-modules|"
+		tar -xvf "${driver_tarball}" --transform "s|open-gpu-kernel-modules-${driver_version}|open-gpu-kernel-modules|"
 	fi
 }
 
