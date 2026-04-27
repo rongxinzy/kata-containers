@@ -507,7 +507,7 @@ setup_kernel() {
 
 		info "Downloading NVIDIA driver source code from: ${driver_url}${driver_version}.tar.gz"
 		[[ -d "${driver_src}" ]] && rm -rf "${driver_src}"
-		curl -L -o "${driver_version}.tar.gz" "${driver_url}${driver_version}.tar.gz"
+		curl -L -o "${driver_version}.tar.gz" -H "Authorization: token ${GITHUB_TOKEN:-}" "${driver_url}${driver_version}.tar.gz"
 		tar -xvf "${driver_version}.tar.gz" --transform "s|open-gpu-kernel-modules-${driver_version}|open-gpu-kernel-modules|"
 	fi
 }
