@@ -1,0 +1,90 @@
+name: Promote Kata 3.29.0 NVIDIA 595 P2P Release
+
+on:
+  push:
+    branches:
+      - codex/promote-release-3.29.0-595-p2p
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  promote:
+    name: Promote amd64 artifacts to GitHub release
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: rongxinzy/kata-containers
+      SOURCE_RUN_ID: "25006191009"
+      RELEASE_TAG: 3.29.0-595.58.03-p2p
+      RELEASE_TARGET: ad70329e97db5321e881d3a3630944585d9733ca
+      RELEASE_TITLE: Kata Containers 3.29.0 + NVIDIA 595.58.03 P2P
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: release-3.29.0-patch-p2p
+          persist-credentials: false
+
+      - name: Download kata static tarball artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ env.REPO }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          name: kata-static-tarball-amd64
+          path: release-assets/static
+
+      - name: Download kata tools static tarball artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ env.REPO }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          name: kata-tools-static-tarball-amd64
+          path: release-assets/tools
+
+      - name: Prepare release assets
+        run: |
+          set -euxo pipefail
+
+          mkdir -p release-assets/upload
+          mv release-assets/static/kata-static.tar.zst \
+            release-assets/upload/kata-static-3.29.0-amd64.tar.zst
+          mv release-assets/tools/kata-tools-static.tar.zst \
+            release-assets/upload/kata-tools-static-3.29.0-amd64.tar.zst
+          cp versions.yaml \
+            release-assets/upload/kata-containers-3.29.0-595.58.03-p2p-versions.yaml
+
+          cd release-assets/upload
+          sha256sum * > SHA256SUMS
+          ls -lh
+
+      - name: Create or update GitHub release
+        run: |
+          set -euxo pipefail
+
+          notes="$(mktemp)"
+          cat > "${notes}" <<'EOF'
+          Custom Kata Containers 3.29.0 amd64 build with NVIDIA open GPU kernel modules 595.58.03 P2P.
+
+          Source CI run: https://github.com/rongxinzy/kata-containers/actions/runs/25006191009
+          Source branch: release-3.29.0-patch-p2p
+          Source commit: ad70329e97db5321e881d3a3630944585d9733ca
+          Driver source release: internal-driver-595.58.03-p2p
+          EOF
+
+          if gh release view "${RELEASE_TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" --repo "${REPO}" --clobber release-assets/upload/*
+          else
+            gh release create "${RELEASE_TAG}" \
+              --repo "${REPO}" \
+              --target "${RELEASE_TARGET}" \
+              --title "${RELEASE_TITLE}" \
+              --notes-file "${notes}" \
+              --prerelease \
+              release-assets/upload/*
+          fi
