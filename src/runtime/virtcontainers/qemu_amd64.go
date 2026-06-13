@@ -67,6 +67,8 @@ var kernelParams = []Param{
 	{"cryptomgr.notests", ""},
 	{"net.ifnames", "0"},
 	{"pci", "lastbus=0"},
+	{"pci", "realloc=off"},
+	{"pci", "nocrs"},
 }
 
 var supportedQemuMachines = []govmmQemu.Machine{

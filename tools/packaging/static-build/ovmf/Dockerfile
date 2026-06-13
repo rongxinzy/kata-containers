@@ -15,6 +15,7 @@ RUN apt-get update && \
         iasl  \
         make \
         nasm \
+        patch \
         python-is-python3 \
         python3 \
         python3-distutils \

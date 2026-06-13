@@ -2004,6 +2004,8 @@ func (vfioDev VFIODevice) QemuParams(config *Config) []string {
 
 	deviceParams = append(deviceParams, fmt.Sprintf("%s,host=%s", driver, vfioDev.BDF))
 	if vfioDev.Transport.isVirtioPCI(config) {
+		deviceParams = append(deviceParams, "x-fixed-bars=on")
+		deviceParams = append(deviceParams, "x-fixed-bars-allow-32bit-fallback=on")
 		if vfioDev.VendorID != "" {
 			deviceParams = append(deviceParams, fmt.Sprintf("x-pci-vendor-id=%s", vfioDev.VendorID))
 		}

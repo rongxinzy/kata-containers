@@ -25,8 +25,10 @@ architecture="${architecture:-X64}"
 if [[ "${ovmf_build}" == "arm64" ]] || [[ "${ovmf_build}" == "cca" ]]; then
 	architecture="AARCH64"
 fi
-toolchain="${toolchain:-GCC5}"
+toolchain="${toolchain:-GCC}"
 build_target="${build_target:-RELEASE}"
+
+ovmf_local_dir="${ovmf_local_dir:-}"
 
 [ -n "$ovmf_repo" ] || die "failed to get ovmf repo"
 if [[ -z "${ovmf_version}" ]] && [[ -z "${ovmf_branch}" ]]; then
@@ -39,12 +41,32 @@ ovmf_dir="${ovmf_repo##*/}"
 
 info "Build ${ovmf_repo} version: ${ovmf_version}"
 
-build_root=$(mktemp -d)
-pushd $build_root
-git clone --single-branch --depth 1 -b "${ovmf_version}" "${ovmf_repo}"
-cd "${ovmf_dir}"
-git submodule init
-git submodule update
+if [ -n "${ovmf_local_dir}" ] && [ -d "${ovmf_local_dir}" ]; then
+	info "Using local OVMF source directory ${ovmf_local_dir}"
+	build_root="${ovmf_local_dir}"
+	cd "${build_root}"
+	# Remove pre-built BaseTools binaries from the host so they are rebuilt
+	# inside the container with the container's toolchain/libraries.
+	rm -rf BaseTools/Source/C/bin BaseTools/Source/C/libs
+	find BaseTools/Source/C -type d -name 'DEBUG' -prune -exec rm -rf {} + 2>/dev/null || true
+	find BaseTools/Source/C -type d -name '.deps' -prune -exec rm -rf {} + 2>/dev/null || true
+	find BaseTools/Source/C \( -name '*.o' -o -name '*.obj' -o -name '*.d' \) -delete 2>/dev/null || true
+	find BaseTools/Source/C -type f -perm /111 -delete 2>/dev/null || true
+else
+	build_root=$(mktemp -d)
+	pushd $build_root
+	git clone --single-branch --depth 1 -b "${ovmf_version}" "${ovmf_repo}"
+	cd "${ovmf_dir}"
+	git submodule init
+	git submodule update
+fi
+
+if [ -d "${script_dir}/patches" ] && [ "$(ls -A "${script_dir}/patches"/*.patch 2>/dev/null)" ]; then
+	info "Applying OVMF patches"
+	for p in "${script_dir}"/patches/*.patch; do
+		patch -p1 < "$p"
+	done
+fi
 
 info "Using BaseTools make target"
 make -C BaseTools/
@@ -76,8 +98,10 @@ else
 	stat "${build_path_fv}/OVMF.fd"
 fi
 
-#need to leave tmp dir
-popd
+if [ -z "${ovmf_local_dir}" ]; then
+	#need to leave tmp dir
+	popd
+fi
 
 info "Install fd to destdir"
 if [ "${ovmf_build}" == "arm64" ] || [ "${ovmf_build}" == "cca" ]; then
@@ -88,18 +112,18 @@ fi
 
 mkdir -p "${install_dir}"
 if [ "${ovmf_build}" == "sev" ]; then
-	install $build_root/$ovmf_dir/"${build_path_fv}"/OVMF.fd "${install_dir}/AMDSEV.fd"
+	install "${build_path_fv}"/OVMF.fd "${install_dir}/AMDSEV.fd"
 elif [ "${ovmf_build}" == "tdx" ]; then
-	install $build_root/$ovmf_dir/"${build_path_fv}"/OVMF.fd "${install_dir}/OVMF.inteltdx.fd"
+	install "${build_path_fv}"/OVMF.fd "${install_dir}/OVMF.inteltdx.fd"
 elif [ "${ovmf_build}" == "arm64" ] || [ "${ovmf_build}" == "cca" ]; then
-	install $build_root/$ovmf_dir/"${build_path_fv}"/QEMU_EFI.fd "${install_dir}/AAVMF_CODE.fd"
-	install $build_root/$ovmf_dir/"${build_path_fv}"/QEMU_VARS.fd "${install_dir}/AAVMF_VARS.fd"
+	install "${build_path_fv}"/QEMU_EFI.fd "${install_dir}/AAVMF_CODE.fd"
+	install "${build_path_fv}"/QEMU_VARS.fd "${install_dir}/AAVMF_VARS.fd"
 	# QEMU expects 64MiB CODE and VARS files on ARM/AARCH64 architectures
 	# Truncate the firmware files to the expected size
 	truncate -s 64M ${install_dir}/AAVMF_CODE.fd
 	truncate -s 64M ${install_dir}/AAVMF_VARS.fd
 else
-	install $build_root/$ovmf_dir/"${build_path_fv}"/OVMF.fd "${install_dir}"
+	install "${build_path_fv}"/OVMF.fd "${install_dir}"
 fi
 
 local_dir=${PWD}

@@ -63,10 +63,12 @@ docker pull ${container_image} || \
 	push_to_registry "${container_image}")
 
 docker run --rm -i -v "${repo_root_dir}:${repo_root_dir}" \
+	-v "/home/bingo/qemu/roms/edk2:/home/bingo/qemu/roms/edk2" \
 	-w "${PWD}" \
 	--env DESTDIR="${DESTDIR}" --env PREFIX="${PREFIX}" \
 	--env ovmf_build="${ovmf_build}" \
 	--env ovmf_repo="${ovmf_repo}" \
+	--env ovmf_local_dir="${ovmf_local_dir:-}" \
 	--env ovmf_version="${ovmf_version}" \
 	--env ovmf_package="${ovmf_package}" \
 	--env package_output_dir="${package_output_dir}" \

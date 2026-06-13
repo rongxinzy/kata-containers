@@ -1199,10 +1199,12 @@ func (q *QMP) ExecuteVFIODeviceAdd(ctx context.Context, devID, bdf, bus, romfile
 	}
 
 	args := map[string]interface{}{
-		"id":      devID,
-		"driver":  driver,
-		"host":    bdf,
-		"romfile": romfile,
+		"id":                                  devID,
+		"driver":                              driver,
+		"host":                                bdf,
+		"romfile":                             romfile,
+		"x-fixed-bars":                        "on",
+		"x-fixed-bars-allow-32bit-fallback":   "on",
 	}
 	if bus != "" {
 		args["bus"] = bus
@@ -1228,11 +1230,13 @@ func (q *QMP) ExecuteVFIODeviceAdd(ctx context.Context, devID, bdf, bus, romfile
 // PCI bus-device-function of the pci device.
 func (q *QMP) ExecutePCIVFIODeviceAdd(ctx context.Context, devID, bdf, addr, bus, romfile string) error {
 	args := map[string]interface{}{
-		"id":      devID,
-		"driver":  VfioPCI,
-		"host":    bdf,
-		"addr":    addr,
-		"romfile": romfile,
+		"id":                                  devID,
+		"driver":                              VfioPCI,
+		"host":                                bdf,
+		"addr":                                addr,
+		"romfile":                             romfile,
+		"x-fixed-bars":                        "on",
+		"x-fixed-bars-allow-32bit-fallback":   "on",
 	}
 
 	if bus != "" {
