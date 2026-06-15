@@ -18,9 +18,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: rongxinzy/kata-containers
-      SOURCE_RUN_ID: "25006191009"
+      SOURCE_RUN_ID: "27524915165"
       RELEASE_TAG: 3.29.0-595.58.03-p2p
-      RELEASE_TARGET: ad70329e97db5321e881d3a3630944585d9733ca
+      RELEASE_TARGET: 65141a94d9ab66e32258d17640cd9d93e7b9eab5
       RELEASE_TITLE: Kata Containers 3.29.0 + NVIDIA 595.58.03 P2P
     steps:
       - name: Checkout release source
