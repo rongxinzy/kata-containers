@@ -129,6 +129,8 @@ chisseled_iptables() {
 	echo "nvidia: chisseling iptables"
 	cp -a "${stage_one}"/usr/sbin/xtables-nft-multi sbin/.
 
+	ln -s ../sbin/xtables-nft-multi sbin/iptables
+	ln -s ../sbin/xtables-nft-multi sbin/ip6tables
 	ln -s ../sbin/xtables-nft-multi sbin/iptables-restore
 	ln -s ../sbin/xtables-nft-multi sbin/iptables-save
 
