@@ -31,9 +31,9 @@ This patch adds the fixed-BAR logic to upstream QEMU 10.2.1:
 ### 2. OVMF patch
 
 File:
-- `tools/packaging/static-build/ovmf/patches/0001-MdeModulePkg-PciBusDxe-Preserve-preset-BAR-address-for-VFIO-passthrough.patch`
+- `tools/packaging/static-build/ovmf/patches/0001-MdeModulePkg-PciBusDxe-Preserve-preset-BAR-address-edk2-stable202508.patch`
 
-This patch modifies OVMF's `ProgramBar()` to use an already-preset BAR address instead of allocating a new one.
+This patch modifies OVMF's `ProgramBar()` and `ProgramVfBar()` to use an already-preset BAR address instead of allocating a new one.
 
 Container build support:
 - `tools/packaging/static-build/ovmf/Dockerfile`: installs `patch`.
@@ -98,18 +98,28 @@ Output: `kata-static-qemu.tar.gz` in the current directory.
 
 ### Build patched OVMF
 
-The Kata OVMF build normally clones upstream `tianocore/edk2`. Because the local source already contains the ProgramBar patch, build from the local tree:
+The Kata OVMF build uses the upstream `tianocore/edk2` version specified in `versions.yaml` (`edk2-stable202508`). The build applies the ProgramBar patch from `tools/packaging/static-build/ovmf/patches/` automatically.
 
-```bash
-cd /home/bingo/kata-containers/tools/packaging/static-build/ovmf
-export PATH="/root/go/bin:$PATH"
-ovmf_repo="edk2" \
-ovmf_local_dir="/home/bingo/qemu/roms/edk2" \
-ovmf_version="master" \
-./build.sh
-```
+1. Ensure the official EDK2 source is cloned and its submodules are initialized:
+
+   ```bash
+   cd /home/bingo/kata-ovmf/edk2
+   git submodule update --init
+   ```
+
+2. Build OVMF from the local source directory:
+
+   ```bash
+   cd /home/bingo/kata-containers/tools/packaging/static-build/ovmf
+   export PATH="/root/go/bin:$PATH"
+   OVMF_LOCAL_DIR="/home/bingo/kata-ovmf/edk2" ./build.sh
+   ```
+
+   `OVMF_LOCAL_DIR` defaults to `/home/bingo/kata-ovmf/edk2` and can be overridden.
 
 Output: `edk2-x86_64.tar.gz` in the current directory.
+
+> **Note:** The previous approach of reusing the QEMU 8.2.2 submodule (`/home/bingo/qemu/roms/edk2`) is no longer used. OVMF is now built from the official `tianocore/edk2` source to align with Kata's version requirements.
 
 ### Build patched Kata runtime
 
@@ -123,7 +133,7 @@ Output: `kata-runtime`, `containerd-shim-kata-v2`, `kata-monitor`.
 
 ## Deployment on Target Host
 
-Target host: `172.18.5.243`
+This section reflects the deployment used to validate the build on `172.18.1.111`. The same steps apply to other hosts running the Kata 3.29 static tarball layout under `/opt/kata`.
 
 Back up existing binaries:
 ```bash
@@ -143,8 +153,27 @@ tar -xzvf /path/to/edk2-x86_64.tar.gz
 cp /path/to/kata-runtime /opt/kata/bin/kata-runtime
 cp /path/to/containerd-shim-kata-v2 /opt/kata/bin/containerd-shim-kata-v2
 chmod +x /opt/kata/bin/kata-runtime /opt/kata/bin/containerd-shim-kata-v2
-systemctl restart containerd
 ```
+
+### QEMU firmware/ROM lookup
+
+QEMU 10.2.1 was built with its default datadir set to `/usr/local/share/qemu`. When Kata starts QEMU, the process cwd is the container bundle directory (`/run/containerd/io.containerd.runtime.v2.task/default/<id>`), so QEMU cannot find `bios-256k.bin`, VGA ROMs, and other firmware files by relative lookup. Two fixes were applied on the target host:
+
+1. Copy the Kata QEMU datadir to the compiled-in datadir:
+   ```bash
+   rm -rf /usr/local/share/qemu
+   cp -a /opt/kata/share/kata-qemu/qemu /usr/local/share/qemu
+   ```
+
+2. Wrap `/opt/kata/bin/qemu-system-x86_64` so that Kata always invokes QEMU with `-L /usr/local/share/qemu`:
+   ```bash
+   mv /opt/kata/bin/qemu-system-x86_64 /opt/kata/bin/qemu-system-x86_64.real
+   cat > /opt/kata/bin/qemu-system-x86_64 <<'EOF'
+   #!/bin/bash
+   exec /opt/kata/bin/qemu-system-x86_64.real -L /usr/local/share/qemu "$@"
+   EOF
+   chmod +x /opt/kata/bin/qemu-system-x86_64
+   ```
 
 Kata config to use:
 ```toml
@@ -152,6 +181,20 @@ Kata config to use:
   cold_plug_vfio = "root-port"
   pcie_root_port = 8
   vfio_mode = "guest-kernel"
+  firmware = "/opt/kata/share/ovmf/OVMF_CODE.fd"
+  firmware_volume = "/opt/kata/share/ovmf/OVMF_VARS.fd"
+```
+
+The split OVMF files can be produced from the single `OVMF.fd` if needed:
+```bash
+cp /opt/kata/share/ovmf/OVMF.fd /opt/kata/share/ovmf/OVMF_VARS.fd
+cp /opt/kata/share/kata-qemu/qemu/edk2-x86_64-code.fd /opt/kata/share/ovmf/OVMF_CODE.fd
+chmod 644 /opt/kata/share/ovmf/OVMF_VARS.fd
+```
+
+Then restart containerd:
+```bash
+systemctl restart containerd
 ```
 
 ## Verification
@@ -201,9 +244,20 @@ curl http://localhost:8006/v1/completions \
        "max_tokens": 20}'
 ```
 
+### Basic Kata container smoke test
+
+Before running GPU workloads, confirm that a simple Kata container can start with the new QEMU/OVMF:
+
+```bash
+ctr run --runtime "io.containerd.kata.v2" --rm \
+  "docker.m.daocloud.io/library/ubuntu:latest" test-kata uname -r
+```
+
+Expected output: the guest kernel version, e.g. `6.18.15`.
+
 ## Notes and Caveats
 
-- The local EDK2 source (`/home/bingo/qemu/roms/edk2`) is based on QEMU's mirror of `edk2-stable202402`. Kata 3.29's `versions.yaml` requests `edk2-stable202508` from `https://github.com/tianocore/edk2`. The OVMF build used the local tree for this deployment; to strictly align with Kata, the ProgramBar patch should be rebased onto `edk2-stable202508`.
+- OVMF is built from the official `tianocore/edk2` source (`edk2-stable202508`) checked out at `/home/bingo/kata-ovmf/edk2`. The ProgramBar patch is applied by `tools/packaging/static-build/ovmf/build-ovmf.sh` during the build. Make sure EDK2 submodules are initialized (`git submodule update --init`) before building.
 - 32-bit non-prefetchable BAR0 is expected to fall back to dynamic allocation because it overlaps guest RAM. This is unavoidable for 32-bit BARs; the important BAR for GPU compute/P2P is the 64-bit BAR1.
 - The `containerd-shim-kata-v2` binary is dynamically linked to the host glibc in this build. For a fully static runtime matching Kata's official release, use `tools/packaging/static-build/shim-v2/build.sh`.
 

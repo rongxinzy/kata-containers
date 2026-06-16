@@ -23,6 +23,10 @@ ovmf_version="${ovmf_version:-}"
 ovmf_package="${ovmf_package:-}"
 ovmf_branch="${ovmf_branch:-}"
 package_output_dir="${package_output_dir:-}"
+OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR:-/home/bingo/kata-ovmf/edk2}"
+
+[ -d "${OVMF_LOCAL_DIR}" ] || die "OVMF local source directory does not exist: ${OVMF_LOCAL_DIR}"
+[ -f "${OVMF_LOCAL_DIR}/edksetup.sh" ] || die "OVMF local source directory does not look like an EDK2 checkout: ${OVMF_LOCAL_DIR}"
 
 if [ -z "$ovmf_repo" ]; then
 	ovmf_repo=$(get_from_kata_deps ".externals.ovmf.url")
@@ -63,12 +67,13 @@ docker pull ${container_image} || \
 	push_to_registry "${container_image}")
 
 docker run --rm -i -v "${repo_root_dir}:${repo_root_dir}" \
-	-v "/home/bingo/qemu/roms/edk2:/home/bingo/qemu/roms/edk2" \
+	-v "${OVMF_LOCAL_DIR}:${OVMF_LOCAL_DIR}" \
 	-w "${PWD}" \
 	--env DESTDIR="${DESTDIR}" --env PREFIX="${PREFIX}" \
 	--env ovmf_build="${ovmf_build}" \
 	--env ovmf_repo="${ovmf_repo}" \
-	--env ovmf_local_dir="${ovmf_local_dir:-}" \
+	--env ovmf_local_dir="${OVMF_LOCAL_DIR}" \
+	--env ovmf_tarball_dir="${ovmf_tarball_dir:-}" \
 	--env ovmf_version="${ovmf_version}" \
 	--env ovmf_package="${ovmf_package}" \
 	--env package_output_dir="${package_output_dir}" \

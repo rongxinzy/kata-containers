@@ -116,10 +116,13 @@ IMAGE_SIZE_ALIGNMENT_MB=${IMAGE_SIZE_ALIGNMENT_MB:-}
 KERNEL_DEBUG_ENABLED="${KERNEL_DEBUG_ENABLED:-}"
 INIT_DATA="${INIT_DATA:-yes}"
 
+OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR:-/home/bingo/kata-ovmf/edk2}"
+
 docker run \
 	-v $HOME/.docker:/root/.docker \
 	-v /var/run/docker.sock:/var/run/docker.sock \
 	-v "${kata_dir}:${kata_dir}" \
+	-v "${OVMF_LOCAL_DIR}:${OVMF_LOCAL_DIR}" \
 	--env USER=${USER} \
 	--env ARTEFACT_REGISTRY="${ARTEFACT_REGISTRY}" \
 	--env ARTEFACT_REPOSITORY="${ARTEFACT_REPOSITORY}" \
@@ -162,6 +165,7 @@ docker run \
 	--env CROSS_BUILD="${CROSS_BUILD}" \
 	--env TARGET_ARCH="${TARGET_ARCH}" \
 	--env ARCH="${ARCH}" \
+	--env OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR}" \
 	--rm \
 	-w ${script_dir} \
 	build-kata-deploy "${kata_deploy_create}" "$@"

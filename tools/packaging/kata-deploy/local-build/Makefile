@@ -6,6 +6,10 @@
 MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 MK_DIR := $(dir $(MK_PATH))
 
+# Default local source directory for OVMF builds.
+OVMF_LOCAL_DIR ?= /home/bingo/kata-ovmf/edk2
+export OVMF_LOCAL_DIR
+
 # Verbose build
 V := 1
 

@@ -267,8 +267,8 @@ calculate_required_disk_size() {
 	readonly rootfs_size_mb=$(du -B 1M -s "${rootfs}" | awk '{print $1}')
 	readonly image="$(mktemp)"
 	readonly mount_dir="$(mktemp -d)"
-	readonly max_tries=20
-	readonly increment=10
+	readonly max_tries=80
+	readonly increment=256
 
 	for i in $(seq 1 $max_tries); do
 		local img_size="$((rootfs_size_mb + (i * increment)))"

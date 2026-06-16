@@ -64,6 +64,11 @@ fi
 if [ -d "${script_dir}/patches" ] && [ "$(ls -A "${script_dir}/patches"/*.patch 2>/dev/null)" ]; then
 	info "Applying OVMF patches"
 	for p in "${script_dir}"/patches/*.patch; do
+		# EDK2 source files use CRLF line endings.  Normalize the target file to
+		# LF before applying a LF-formatted patch so the context matches and we
+		# don't depend on the container's patch behaviour regarding CRLF.
+		cr=$(printf '\015')
+		sed -i "s/${cr}$//" MdeModulePkg/Bus/Pci/PciBusDxe/PciResourceSupport.c
 		patch -p1 < "$p"
 	done
 fi
@@ -127,7 +132,9 @@ else
 fi
 
 local_dir=${PWD}
+tarball_dir="${ovmf_tarball_dir:-${local_dir}}"
+mkdir -p "${tarball_dir}"
 pushd $DESTDIR
-tar -czvf "${local_dir}/${ovmf_dir}-${ovmf_build}.tar.gz" "./$PREFIX"
+tar -czvf "${tarball_dir}/${ovmf_dir}-${ovmf_build}.tar.gz" "./$PREFIX"
 rm -rf $(dirname ./$PREFIX)
 popd
