@@ -2927,6 +2927,10 @@ type Config struct {
 	// PidFile is the -pidfile parameter
 	PidFile string
 
+	// DataDir is the -L parameter, setting QEMU's firmware/ROM lookup
+	// directory. When empty, no -L option is emitted.
+	DataDir string
+
 	qemuParams []string
 
 	Debug bool
@@ -3270,6 +3274,13 @@ func (config *Config) appendPidFile() {
 	}
 }
 
+func (config *Config) appendDataDir() {
+	if config.DataDir != "" {
+		config.qemuParams = append(config.qemuParams, "-L")
+		config.qemuParams = append(config.qemuParams, config.DataDir)
+	}
+}
+
 func (config *Config) appendFwCfg(logger QMPLog) {
 	if logger == nil {
 		logger = qmpNullLogger{}
@@ -3309,6 +3320,7 @@ func LaunchQemu(config Config, logger QMPLog) (*exec.Cmd, io.ReadCloser, error) 
 	config.appendIncoming()
 	config.appendPidFile()
 	config.appendFwCfg(logger)
+	config.appendDataDir()
 	config.appendSeccompSandbox()
 
 	if err := config.appendCPUs(); err != nil {

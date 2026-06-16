@@ -157,23 +157,17 @@ chmod +x /opt/kata/bin/kata-runtime /opt/kata/bin/containerd-shim-kata-v2
 
 ### QEMU firmware/ROM lookup
 
-QEMU 10.2.1 was built with its default datadir set to `/usr/local/share/qemu`. When Kata starts QEMU, the process cwd is the container bundle directory (`/run/containerd/io.containerd.runtime.v2.task/default/<id>`), so QEMU cannot find `bios-256k.bin`, VGA ROMs, and other firmware files by relative lookup. Two fixes were applied on the target host:
+QEMU 10.2.1 was built with its default datadir set to `/usr/local/share/qemu`. When Kata starts QEMU, the process cwd is the container bundle directory (`/run/containerd/io.containerd.runtime.v2.task/default/<id>`), so QEMU cannot find `bios-256k.bin`, VGA ROMs, and other firmware files by relative lookup.
 
-1. Copy the Kata QEMU datadir to the compiled-in datadir:
-   ```bash
-   rm -rf /usr/local/share/qemu
-   cp -a /opt/kata/share/kata-qemu/qemu /usr/local/share/qemu
-   ```
+The Kata runtime now derives the correct data directory from the configured `path` (the directory `/opt/kata/share/kata-qemu/qemu` next to `/opt/kata/bin/qemu-system-x86_64`) and automatically passes `-L /opt/kata/share/kata-qemu/qemu` to QEMU. No wrapper script is required anymore.
 
-2. Wrap `/opt/kata/bin/qemu-system-x86_64` so that Kata always invokes QEMU with `-L /usr/local/share/qemu`:
-   ```bash
-   mv /opt/kata/bin/qemu-system-x86_64 /opt/kata/bin/qemu-system-x86_64.real
-   cat > /opt/kata/bin/qemu-system-x86_64 <<'EOF'
-   #!/bin/bash
-   exec /opt/kata/bin/qemu-system-x86_64.real -L /usr/local/share/qemu "$@"
-   EOF
-   chmod +x /opt/kata/bin/qemu-system-x86_64
-   ```
+If you are running a non-standard layout, or need to override the lookup directory, you can still manually copy the Kata QEMU datadir to the compiled-in datadir:
+```bash
+rm -rf /usr/local/share/qemu
+cp -a /opt/kata/share/kata-qemu/qemu /usr/local/share/qemu
+```
+
+For reference, the previous workaround was to wrap `/opt/kata/bin/qemu-system-x86_64` so that Kata invoked QEMU with `-L /usr/local/share/qemu`. This wrapper has been replaced by the runtime change above.
 
 Kata config to use:
 ```toml

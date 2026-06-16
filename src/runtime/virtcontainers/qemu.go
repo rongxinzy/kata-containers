@@ -245,6 +245,36 @@ func (q *qemu) qemuPath() (string, error) {
 	return p, nil
 }
 
+// qemuDataDir returns the QEMU data directory that should be passed via -L.
+// It is derived from the configured hypervisor path: the firmware/ROM files
+// installed by the kata-static QEMU tarball live in a "qemu" subdirectory
+// next to the binary (e.g. /opt/kata/share/kata-qemu/qemu for
+// /opt/kata/bin/qemu-system-x86_64).  Passing -L makes QEMU find bios-256k.bin
+// and the VGA ROMs regardless of the process cwd.
+func (q *qemu) qemuDataDir() string {
+	qemuPath, err := q.config.HypervisorAssetPath()
+	if err != nil {
+		return ""
+	}
+	if qemuPath == "" {
+		qemuPath = q.arch.qemuPath()
+	}
+
+	binDir := filepath.Dir(qemuPath)
+	// If hypervisor is in /opt/kata/bin, data dir is /opt/kata/share/kata-qemu/qemu
+	shareDir := filepath.Join(binDir, "..", "share", "kata-qemu", "qemu")
+	shareDir, err = filepath.Abs(shareDir)
+	if err != nil {
+		return ""
+	}
+
+	if _, err := os.Stat(shareDir); os.IsNotExist(err) {
+		return ""
+	}
+
+	return shareDir
+}
+
 // setup sets the Qemu structure up.
 func (q *qemu) setup(ctx context.Context, id string, hypervisorConfig *HypervisorConfig) error {
 	span, _ := katatrace.Trace(ctx, q.Logger(), "setup", qemuTracingTags, map[string]string{"sandbox_id": q.id})
@@ -722,6 +752,7 @@ func (q *qemu) CreateVM(ctx context.Context, id string, network Network, hypervi
 		Bios:           firmwarePath,
 		PFlash:         pflash,
 		PidFile:        filepath.Join(q.config.VMStorePath, q.id, "pid"),
+		DataDir:        q.qemuDataDir(),
 		Debug:          hypervisorConfig.Debug,
 	}
 
