@@ -1961,6 +1961,13 @@ type VFIODevice struct {
 	// Bus specifies device bus
 	Bus string
 
+	// Addr specifies the PCI address (slot or slot.function) on the bus.
+	Addr string
+
+	// Multifunction enables multifunction support for this device.
+	// When true, QEMU is told the slot can host multiple functions.
+	Multifunction bool
+
 	// Transport is the virtio transport for this device.
 	Transport VirtioTransport
 
@@ -2019,6 +2026,14 @@ func (vfioDev VFIODevice) QemuParams(config *Config) []string {
 
 	if vfioDev.Bus != "" {
 		deviceParams = append(deviceParams, fmt.Sprintf("bus=%s", vfioDev.Bus))
+	}
+
+	if vfioDev.Addr != "" {
+		deviceParams = append(deviceParams, fmt.Sprintf("addr=%s", vfioDev.Addr))
+	}
+
+	if vfioDev.Multifunction {
+		deviceParams = append(deviceParams, "multifunction=on")
 	}
 
 	if vfioDev.Transport.isVirtioCCW(config) {

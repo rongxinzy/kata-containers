@@ -82,6 +82,13 @@ func (device *VFIODevice) Attach(ctx context.Context, devReceiver api.DeviceRece
 		}
 	}
 
+	// Group functions from the same IOMMU group onto a single multifunction
+	// PCIe slot.  This is required when the GPU (class 0x03xx) shares its
+	// IOMMU group with an audio function (class 0x04xx) or other functions:
+	// placing them on the same slot consumes only one pcie.0 address, which
+	// keeps 8-GPU configurations within the root-bus slot limit.
+	device.VfioDevs = groupVFIODevicesByIOMMU(device.VfioDevs)
+
 	for _, vfio := range device.VfioDevs {
 		// If vfio.Port is not set we bail out, users should set
 		// explicitly the port in the config file
@@ -366,4 +373,44 @@ func BindDevicetoHost(bdf, hostDriver string) error {
 	// Invoke drivers_probe so that the driver matching driver_override, in this case
 	// the previous host driver will probe the device.
 	return utils.WriteToFile(driversProbePath, []byte(bdf))
+}
+
+// groupVFIODevicesByIOMMU reorders the VFIO devices belonging to the same
+// IOMMU group so that they share a single multifunction PCIe slot.  The
+// display/GPU function (PCI class 0x03xx) is placed at function 0; any other
+// functions (audio 0x04xx, USB 0x0c03, ...) are assigned subsequent function
+// numbers.
+func groupVFIODevicesByIOMMU(vfioDevs []*config.VFIODev) []*config.VFIODev {
+	if len(vfioDevs) <= 1 {
+		return vfioDevs
+	}
+
+	// Determine the primary GPU function: prefer a display controller
+	// (class 0x03xx).  If none is found, keep the first device as primary.
+	primaryIdx := 0
+	for i, dev := range vfioDevs {
+		if strings.HasPrefix(dev.Class, "03") {
+			primaryIdx = i
+			break
+		}
+	}
+
+	// Build a new slice with primary first, followed by the remaining
+	// functions in their original order.
+	ordered := make([]*config.VFIODev, 0, len(vfioDevs))
+	ordered = append(ordered, vfioDevs[primaryIdx])
+	for i, dev := range vfioDevs {
+		if i == primaryIdx {
+			continue
+		}
+		ordered = append(ordered, dev)
+	}
+
+	ordered[0].IsMultifunction = len(ordered) > 1
+	ordered[0].Function = 0
+	for i := 1; i < len(ordered); i++ {
+		ordered[i].Function = uint8(i)
+	}
+
+	return ordered
 }

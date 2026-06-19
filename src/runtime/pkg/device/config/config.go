@@ -430,6 +430,15 @@ type VFIODev struct {
 	// HostPath is the path to the device on the host we need it as a reference
 	// to match a /dev/vfio/<num> device to a device in GK mode
 	HostPath string
+
+	// Function is the PCI function number within a multifunction slot.
+	// Only meaningful when the device shares a slot with other functions
+	// from the same IOMMU group.
+	Function uint8
+
+	// IsMultifunction is true when this device is the primary (function 0)
+	// of a multifunction PCIe slot.
+	IsMultifunction bool
 }
 
 // IOMMUFDID returns the IOMMUFD ID if the VFIO device is backed by IOMMUFD

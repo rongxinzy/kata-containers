@@ -704,21 +704,49 @@ func (q *qemuArchBase) appendVhostUserDevice(ctx context.Context, devices []govm
 	return devices, nil
 }
 
+const vfioRootSlotBase = 16
+
+var vfioRootSlotCounter uint32
+
 func (q *qemuArchBase) appendVFIODevice(devices []govmmQemu.Device, vfioDev config.VFIODev) []govmmQemu.Device {
 
 	if vfioDev.BDF == "" {
 		return devices
 	}
 
+	// For fixed-BAR GPA=HPA passthrough the GPU is attached directly to the
+	// root bus (pcie.0).  When the IOMMU group contains multiple functions we
+	// place them on the same multifunction slot so that only one root-bus
+	// address is consumed per group.
+	bus := vfioDev.Bus
+	addr := ""
+	multifunction := vfioDev.IsMultifunction
+
+	if bus == "" && vfioDev.IsPCIe {
+		bus = defaultBridgeBus
+
+		if vfioDev.Function == 0 {
+			addr = fmt.Sprintf("%x", vfioRootSlotBase+vfioRootSlotCounter)
+			vfioRootSlotCounter++
+		} else {
+			// Secondary functions share the slot assigned to the primary.
+			// The primary is always appended first within a group, so the
+			// counter already points to the next slot; use the previous one.
+			addr = fmt.Sprintf("%x.%x", vfioRootSlotBase+vfioRootSlotCounter-1, vfioDev.Function)
+		}
+	}
+
 	devices = append(devices,
 		govmmQemu.VFIODevice{
-			ID:       vfioDev.ID,
-			BDF:      vfioDev.BDF,
-			VendorID: vfioDev.VendorID,
-			DeviceID: vfioDev.DeviceID,
-			Bus:      vfioDev.Bus,
-			SysfsDev: vfioDev.SysfsDev,
-			DevfsDev: vfioDev.DevfsDev,
+			ID:            vfioDev.ID,
+			BDF:           vfioDev.BDF,
+			VendorID:      vfioDev.VendorID,
+			DeviceID:      vfioDev.DeviceID,
+			Bus:           bus,
+			Addr:          addr,
+			Multifunction: multifunction,
+			SysfsDev:      vfioDev.SysfsDev,
+			DevfsDev:      vfioDev.DevfsDev,
 		},
 	)
 

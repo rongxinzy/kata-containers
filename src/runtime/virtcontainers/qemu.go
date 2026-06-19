@@ -39,7 +39,6 @@ import (
 
 	pkgDevice "github.com/kata-containers/kata-containers/src/runtime/pkg/device"
 	"github.com/kata-containers/kata-containers/src/runtime/pkg/device/config"
-	"github.com/kata-containers/kata-containers/src/runtime/pkg/device/drivers"
 	hv "github.com/kata-containers/kata-containers/src/runtime/pkg/hypervisors"
 	"github.com/kata-containers/kata-containers/src/runtime/pkg/katautils/katatrace"
 	pkgUtils "github.com/kata-containers/kata-containers/src/runtime/pkg/utils"
@@ -859,40 +858,21 @@ func (q *qemu) createPCIeTopology(qemuConfig *govmmQemu.Config, hypervisorConfig
 		}
 		numOfPluggablePorts += uint32(virtPcieRootPortNum)
 	}
+
+	// Each VFIO device passed via --device corresponds to one IOMMU group.
+	// A group may contain several functions (e.g. GPU + audio) but they share
+	// a single root-bus slot when emitted as a multifunction device.  Count
+	// groups, not functions, so 8 GPUs do not request 16 root ports.
 	for _, dev := range hypervisorConfig.VFIODevices {
-		var err error
-		dev.HostPath, err = config.GetHostPath(dev, false, "")
-		if err != nil {
-			return fmt.Errorf("Cannot get host path for device: %v err: %v", dev, err)
-		}
-
-		var vfioDevices []*config.VFIODev
-		// This works for IOMMUFD enabled kernels > 6.x
-		// In the case of IOMMUFD the device.HostPath will look like
-		// /dev/vfio/devices/vfio0
-		// (1) Check if we have the new IOMMUFD or old container based VFIO
-		if strings.HasPrefix(dev.HostPath, pkgDevice.IommufdDevPath) {
-			vfioDevices, err = drivers.GetDeviceFromVFIODev(dev)
-			if err != nil {
-				return fmt.Errorf("Cannot get VFIO device from IOMMUFD with device: %v err: %v", dev, err)
-			}
-		} else {
-			if q.config.ConfidentialGuest {
-				return fmt.Errorf("ConfidentialGuest needs IOMMUFD - cannot use %s", dev.HostPath)
-			}
-
-			vfioDevices, err = drivers.GetAllVFIODevicesFromIOMMUGroup(dev)
-			if err != nil {
-				return fmt.Errorf("Cannot get all VFIO devices from IOMMU group with device: %v err: %v", dev, err)
-			}
-		}
-
-		for _, vfioDevice := range vfioDevices {
-			if drivers.IsPCIeDevice(vfioDevice.BDF) {
-				numOfPluggablePorts = numOfPluggablePorts + 1
-			}
+		if !strings.HasPrefix(dev.HostPath, pkgDevice.IommufdDevPath) && q.config.ConfidentialGuest {
+			return fmt.Errorf("ConfidentialGuest needs IOMMUFD - cannot use %s", dev.HostPath)
 		}
 	}
+	numOfPluggablePorts += uint32(len(hypervisorConfig.VFIODevices))
+
+	// Reset the VFIO root-bus slot allocator at the start of each VM so that
+	// multifunction groups get deterministic, non-overlapping addresses.
+	vfioRootSlotCounter = 0
 	vfioOnRootPort := (q.state.HotPlugVFIO == config.RootPort || q.state.ColdPlugVFIO == config.RootPort)
 	vfioOnSwitchPort := (q.state.HotPlugVFIO == config.SwitchPort || q.state.ColdPlugVFIO == config.SwitchPort)
 
