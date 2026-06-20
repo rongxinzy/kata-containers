@@ -736,17 +736,35 @@ func (q *qemuArchBase) appendVFIODevice(devices []govmmQemu.Device, vfioDev conf
 		}
 	}
 
+	// For NVIDIA display/GPU functions (class 0x03xx) enable NVIDIA GPUDirect
+	// clique support so that NCCL can use direct P2P DMA across virtual root
+	// ports.  Also disable the ROM BAR and QEMU display surface to avoid
+	// VGA/firmware conflicts, matching the known-good QEMU reference
+	// configuration for NVIDIA GPU passthrough.
+	isNVIDIAGPU := vfioDev.VendorID == "0x10de" && strings.HasPrefix(vfioDev.Class, "0x03")
+	gpuDirectClique := ""
+	displayOff := false
+	romBarZero := false
+	if isNVIDIAGPU {
+		gpuDirectClique = "0"
+		displayOff = true
+		romBarZero = true
+	}
+
 	devices = append(devices,
 		govmmQemu.VFIODevice{
-			ID:            vfioDev.ID,
-			BDF:           vfioDev.BDF,
-			VendorID:      vfioDev.VendorID,
-			DeviceID:      vfioDev.DeviceID,
-			Bus:           bus,
-			Addr:          addr,
-			Multifunction: multifunction,
-			SysfsDev:      vfioDev.SysfsDev,
-			DevfsDev:      vfioDev.DevfsDev,
+			ID:              vfioDev.ID,
+			BDF:             vfioDev.BDF,
+			VendorID:        vfioDev.VendorID,
+			DeviceID:        vfioDev.DeviceID,
+			Bus:             bus,
+			Addr:            addr,
+			Multifunction:   multifunction,
+			GPUDirectClique: gpuDirectClique,
+			DisplayOff:      displayOff,
+			ROMBarZero:      romBarZero,
+			SysfsDev:        vfioDev.SysfsDev,
+			DevfsDev:        vfioDev.DevfsDev,
 		},
 	)
 

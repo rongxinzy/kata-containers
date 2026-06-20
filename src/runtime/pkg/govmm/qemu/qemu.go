@@ -1968,6 +1968,17 @@ type VFIODevice struct {
 	// When true, QEMU is told the slot can host multiple functions.
 	Multifunction bool
 
+	// GPUDirectClique sets the NVIDIA GPUDirect clique ID for the vfio-pci
+	// device.  This is required for peer-to-peer DMA between NVIDIA GPUs that
+	// are attached to different PCIe root ports of the same root complex.
+	GPUDirectClique string
+
+	// DisplayOff disables the QEMU display surface for the device.
+	DisplayOff bool
+
+	// ROMBarZero hides the PCI ROM BAR from the guest firmware.
+	ROMBarZero bool
+
 	// Transport is the virtio transport for this device.
 	Transport VirtioTransport
 
@@ -2021,6 +2032,15 @@ func (vfioDev VFIODevice) QemuParams(config *Config) []string {
 		}
 		if vfioDev.ROMFile != "" {
 			deviceParams = append(deviceParams, fmt.Sprintf("romfile=%s", vfioDev.ROMFile))
+		}
+		if vfioDev.GPUDirectClique != "" {
+			deviceParams = append(deviceParams, fmt.Sprintf("x-nv-gpudirect-clique=%s", vfioDev.GPUDirectClique))
+		}
+		if vfioDev.DisplayOff {
+			deviceParams = append(deviceParams, "display=off")
+		}
+		if vfioDev.ROMBarZero {
+			deviceParams = append(deviceParams, "rombar=0")
 		}
 	}
 
