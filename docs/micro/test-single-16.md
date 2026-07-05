@@ -239,9 +239,214 @@ nerdctl exec g12 nvidia-smi -L | wc -l  # 预期: 12
 
 ---
 
-## 14+ GPU 后续排查方向（已解决）
+## 排查调试工具与方法
 
-✅ 根因是 vhost 内存区域限制，不是 PCI slot 问题。增大 `max_mem_regions` 后 16 GPU 正常。
+### 1. 定位内核 VFIO bus reset 卡死
+
+**现象**: QEMU 进程存在但 CPU 13%，kata-agent 始终未连接，持续 15+ 分钟。
+
+**工具**: `/proc/PID/stack`
+
+```bash
+PID=$(pgrep -f qemu-system | head -1)
+cat /proc/$PID/stack
+```
+
+**关键输出**:
+```
+[<0>] msleep+0x2d/0x40
+[<0>] pcie_wait_for_link_delay+0x5f/0xf0
+[<0>] pci_bridge_wait_for_secondary_bus.part.0+0x16a/0x1d0
+[<0>] __pci_reset_bus+0xe8/0x140
+[<0>] pci_reset_bus+0x3b/0x50
+[<0>] vfio_pci_dev_set_hot_reset+0x1b9/0x1d0
+```
+
+**分析**: 内核 `vfio_pci_dev_set_hot_reset` → `pci_reset_bus` → `pci_bridge_wait_for_secondary_bus` → `pcie_wait_for_link_delay`，PCIe 链路恢复超时。
+
+**工具**: `strace -c -p PID`
+
+```bash
+timeout 10 strace -c -p $PID 2>&1 | tail -30
+```
+
+**关键输出**: 94% 时间在 `ioctl`（VFIO 设备初始化），799 次调用 35 错误。
+
+**修复**: 通过 sysfs 强制 FLR 替代 bus reset:
+
+```bash
+# 查看可用复位方式
+cat /sys/bus/pci/devices/0000:b8:00.0/reset_method   # → "flr bus"
+
+# 强制函数级复位
+echo flr > /sys/bus/pci/devices/0000:b8:00.0/reset_method
+```
+
+### 2. 定位 vhost 内存区域溢出
+
+**现象**: 14+ GPU 时容器创建超时，QEMU 正常运行但 agent 未连接。
+
+**工具**: `journalctl` 过滤 QEMU 错误
+
+```bash
+journalctl -u containerd --since "2 min ago" --no-pager \
+  | grep -i "qemu-system.*error"
+```
+
+**关键输出**:
+```
+vhost_set_mem_table failed: Argument list too long (7)
+Error starting vhost: 7
+```
+
+**分析**: errno 7 = E2BIG，`VHOST_MEMORY_MAX_NREGIONS` 默认 64，16 GPU 需 ~100 区域。
+
+**修复**:
+```bash
+cat /sys/module/vhost/parameters/max_mem_regions   # → 64
+modprobe -r vhost_vsock vhost_net vhost
+modprobe vhost max_mem_regions=256
+modprobe vhost_vsock vhost_net
+```
+
+### 3. 排查 OVMF 是否卡死（直接 QEMU 测试绕过 kata）
+
+**目的**: 区分 OVMF firmware 问题还是 kata agent/用户空间问题。
+
+**方法**: 构造等效 QEMU 命令行，绕过 kata runtime 直接启动 VM：
+
+```bash
+/opt/kata/bin/qemu-system-x86_64 \
+    -machine q35,accel=kvm -cpu host,pmu=off \
+    -m 64G -bios /opt/kata/share/ovmf/OVMF.fd \
+    -kernel /opt/kata/share/kata-containers/vmlinuz-*-nvidia-gpu \
+    -initrd /opt/kata/share/kata-containers/kata-alpine-*.initrd \
+    -append "console=ttyS0 tsc=reliable reboot=k pci=realloc=off pci=nocrs panic=60" \
+    -nographic -vga none -no-user-config -nodefaults \
+    -device vfio-pci,host=0000:b8:00.0,x-fixed-bars=on,bus=pcie.0,addr=f,multifunction=on \
+    ... (共 16 GPU 设备) \
+    -serial stdio
+```
+
+**结果**: kernel 0.5-0.9s 启动，**OVMF 不是瓶颈**。
+
+### 4. PCIe 设备布局分析
+
+**工具**: Python 脚本解析 `/proc/PID/cmdline`
+
+```python
+# /tmp/parse-qemu.py
+import glob, re
+pids = [p for p in glob.glob("/proc/*/cmdline")
+        if "qemu-system" in open(p).read()]
+pid = pids[0].split("/")[2]
+with open(f"/proc/{pid}/cmdline", "rb") as f:
+    data = f.read().split(b"\x00")
+devices = []
+in_device = False
+for p in data:
+    s = p.decode("utf-8", errors="replace")
+    if s == "-device":
+        in_device = True; devices.append("")
+    elif in_device:
+        devices[-1] = s; in_device = False
+for d in devices:
+    parts = d.strip().split(",")
+    bus = next((x.split("=")[1] for x in parts if x.startswith("bus=")), "auto")
+    addr = next((x.split("=")[1] for x in parts if x.startswith("addr=")), "auto")
+    print(f"bus={bus:8s} addr={addr:6s}  {parts[0]}")
+```
+
+**12 GPU 设备布局示例**:
+```
+bus=pcie.0   addr=2       pci-bridge (io-reserve=4k)
+bus=auto     addr=auto    virtio-serial-pci
+bus=auto     addr=auto    virtio-blk-pci
+bus=pcie.0   addr=f..1a   vfio-pci × 12 (GPU + audio)
+bus=auto     addr=auto    vhost-vsock-pci
+bus=auto     addr=auto    vhost-user-fs-pci
+```
+
+### 5. PCIe 物理拓扑追踪
+
+**工具**: `readlink -f` 追踪 sysfs 拓扑
+
+```bash
+# GPU 物理拓扑（经过几层 PCIe bridge）
+readlink -f /sys/bus/pci/devices/0000:b8:00.0 | tr "/" "\n" | grep "0000:"
+
+# 输出: pci0000:af → af:01.0 → b0:00.0 → b1:00.0 → ... → b8:00.0 (10 层)
+```
+
+**ACS 状态检查**:
+```bash
+for bdf in af:01.0 b1:00.0 b3:10.0 b5:00.0 b7:00.0; do
+    setpci -s $bdf ECAP_ACS+0x06.w
+done
+# ACS_CTRL=0000 → 已禁用
+```
+
+### 6. GPU P2P 拓扑分析
+
+**工具**: guest 内 NVIDIA 工具
+
+```bash
+# 检查 P2P 能力
+nvidia-smi topo -p2p r -i 0,1   # nvidia-smi topo 简写
+# 全部 "OK" → P2P 已启用 (x-nv-gpudirect-clique=0)
+
+# 检查物理拓扑
+nvidia-smi topo -m   # 全部 "PHB" → guest 虚拟 pcie.0 限制
+```
+
+**NCCL 传输路径诊断**:
+```bash
+NCCL_DEBUG=INFO NCCL_P2P_LEVEL=5 all_reduce_perf -b 256M -e 256M -f 2 -g 2 2>&1 \
+  | grep -E "P2P Type|directMode|Channel.*via"
+```
+```
+isAllDirectP2p 0 → P2P_LEVEL=SYS (默认，虚拟拓扑限制)
+isAllDirectP2p 1 → P2P_LEVEL=5 (强制本地 P2P)
+Channel 00 : 0[0] → 1[1] via P2P/direct pointer
+```
+
+### 7. QEMU 启动错误快速定位
+
+```bash
+# 查看 containerd 中 kata 的 QEMU 错误
+journalctl -u containerd --since "2 min ago" --no-pager \
+  | grep -E "qemu-system.*error|slot.*not available|vfio.*Could not"
+
+# 查看 QEMU 进程状态
+cat /proc/$(pgrep qemu-system)/status | grep -E "State|VmRSS|Threads"
+
+# 进程运行时间
+ps -o etime= -p $(pgrep qemu-system)
+```
+
+### 8. 排查流程总结
+
+```
+16 GPU 容器创建超时
+  │
+  ├─ QEMU 进程存在? ─── NO ──→ journalctl 查 QEMU 启动错误
+  │                             (slot 冲突 / VFIO busy / IO 耗尽)
+  │
+  └─ QEMU 进程存在? ─── YES ──→ cat /proc/PID/stack
+        │
+        ├─ pcie_wait_for_link ──→ VFIO bus reset 卡死
+        │                         → echo flr > reset_method
+        │
+        ├─ do_poll/ppoll ──→ QEMU 正常运行，guest 已启动
+        │     │
+        │     ├─ agent 超时未连接 ──→ journalctl 查 vhost/vsock 错误
+        │     │                       → vhost_set_mem_table failed?
+        │     │                       → max_mem_regions 不够
+        │     │
+        │     └─ agent 已连接 ──→ OK
+        │
+        └─ do_wait ──→ QEMU 初始化阶段卡住
+                       → VFIO 设备打开失败 / 内存分配问题
 
 ---
 
