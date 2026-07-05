@@ -15,6 +15,7 @@ docs/micro/
 ├── sw-qiao-test.md                        ← G2/G5 GPU 问题排查记录
 ├── kata-vfio-docker-gpu-deploy-test-plan.md ← 正式测试方案
 ├── vfio-fixed-bar-gpa-hpa-kata.md         ← VFIO BAR 修复技术文档
+├── test-single-16.md                      ← ★ 单容器 16 GPU 研究记录
 │
 ├── config/
 │   └── gpu-groups.conf                    ← GPU 分组配置（每台机器编辑）
@@ -83,3 +84,5 @@ bash scripts/run-all.sh
 | GPU 分组 | nvidia-smi 不可见的 32 GPU → vfio-pci（Kata），可见的 32 GPU → nvidia（Docker） |
 | Kata 配置 | 16 vCPU, 32 GB RAM, cold_plug_vfio=root-port, /dev/shm=300G |
 | 模型 | Qwen3-14B, TP=4/PP=2 (Kata), TP=8/PP=4 (Docker) |
+| **单容器 16 GPU** | ✅ 已实现，需宿主机 FLR + vhost max_mem_regions=256 + NCCL P2P_LEVEL=5 |
+| Kata runtime 改动 | `vfioRootSlotBase=15` + cold-plug 不计入 root port 数 |

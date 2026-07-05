@@ -41,15 +41,49 @@ case "$PHASE" in
     --all) RUN_VFIO=true; RUN_DOCKER=true ;;
 esac
 
-VFIO_NAMES=(g1 g2 g3 g4)
+# Auto-detect VFIO containers from nerdctl
+VFIO_NAMES=()
+if $RUN_VFIO; then
+    mapfile -t VFIO_NAMES < <(nerdctl ps --format '{{.Names}}' 2>/dev/null | grep -E '^g[0-9]+$' | sort -V) || true
+    if [ ${#VFIO_NAMES[@]} -eq 0 ]; then
+        # Fallback: try docker containers too
+        mapfile -t VFIO_NAMES < <(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^g[0-9]+$' | sort -V) || true
+    fi
+    if [ ${#VFIO_NAMES[@]} -eq 0 ]; then
+        echo "WARNING: No VFIO containers (g1, g2, ...) found"
+    fi
+fi
+
 DOCKER_PORT=8000
+GPU_PER_CONTAINER=8  # default, will be auto-detected
+
+for NAME in "${VFIO_NAMES[@]}"; do
+    GPU_COUNT=$(nerdctl exec "${NAME}" nvidia-smi -L 2>/dev/null | wc -l || echo 0)
+    if [ "$GPU_COUNT" -ge 16 ]; then
+        GPU_PER_CONTAINER=16
+        break
+    fi
+done
+
+# NCCL P2P level: force P2P for 16+ GPU containers
+if [ "$GPU_PER_CONTAINER" -ge 16 ]; then
+    NCCL_P2P_LEVEL=5
+    # Auto-adjust TP/PP for 16 GPU: tp=4 pp=4
+    VFIO_TP=4
+    VFIO_PP=4
+else
+    NCCL_P2P_LEVEL=SYS
+    # Default for 8 GPU: tp=4 pp=2
+    VFIO_TP=4
+    VFIO_PP=2
+fi
 
 VFIO_ARGS="--served-model-name ${SERVED_NAME} \
     --tensor-parallel-size ${VFIO_TP} --pipeline-parallel-size ${VFIO_PP} \
     --port 8000 --dtype float16 --max-model-len 2048 \
     --gpu-memory-utilization 0.80 --max-num-seqs 128"
 
-START_VFIO_CMD="export NCCL_P2P_LEVEL=SYS; nohup vllm serve ${MODEL} ${VFIO_ARGS} > /root/vllm.log 2>&1 &"
+START_VFIO_CMD="export NCCL_P2P_LEVEL=${NCCL_P2P_LEVEL}; nohup vllm serve ${MODEL} ${VFIO_ARGS} > /root/vllm.log 2>&1 &"
 START_DOCKER_CMD="export NCCL_P2P_LEVEL=SYS; nohup vllm serve ${MODEL} --served-model-name ${SERVED_NAME} --tensor-parallel-size ${DOCKER_TP} --pipeline-parallel-size ${DOCKER_PP} --port 8000 --dtype float16 --max-model-len 2048 --gpu-memory-utilization 0.70 --max-num-seqs 128 > /root/vllm.log 2>&1 &"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }

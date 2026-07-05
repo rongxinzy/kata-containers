@@ -704,7 +704,10 @@ func (q *qemuArchBase) appendVhostUserDevice(ctx context.Context, devices []govm
 	return devices, nil
 }
 
-const vfioRootSlotBase = 16
+// ICH9-LPC is always at slot 31 (0x1f) on Q35, so 16 consecutive
+// GPU slots must fit in [15, 30] to avoid a collision with the LPC
+// bridge on the final address.
+const vfioRootSlotBase = 15
 
 var vfioRootSlotCounter uint32
 

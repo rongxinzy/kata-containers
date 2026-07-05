@@ -859,16 +859,23 @@ func (q *qemu) createPCIeTopology(qemuConfig *govmmQemu.Config, hypervisorConfig
 		numOfPluggablePorts += uint32(virtPcieRootPortNum)
 	}
 
-	// Each VFIO device passed via --device corresponds to one IOMMU group.
-	// A group may contain several functions (e.g. GPU + audio) but they share
-	// a single root-bus slot when emitted as a multifunction device.  Count
-	// groups, not functions, so 8 GPUs do not request 16 root ports.
-	for _, dev := range hypervisorConfig.VFIODevices {
-		if !strings.HasPrefix(dev.HostPath, pkgDevice.IommufdDevPath) && q.config.ConfidentialGuest {
-			return fmt.Errorf("ConfidentialGuest needs IOMMUFD - cannot use %s", dev.HostPath)
+	// When cold-plug VFIO devices are attached directly to the root bus
+	// (pcie.0), they bypass pcie-root-ports entirely.  Do not inflate the
+	// root-port count for those devices — each unused root port would waste
+	// 4 KiB of IO space and one pcie.0 slot, limiting the total number of
+	// GPUs the VM can host.
+	if q.state.ColdPlugVFIO != config.RootPort {
+		// Each VFIO device passed via --device corresponds to one IOMMU group.
+		// A group may contain several functions (e.g. GPU + audio) but they share
+		// a single root-bus slot when emitted as a multifunction device.  Count
+		// groups, not functions, so 8 GPUs do not request 16 root ports.
+		for _, dev := range hypervisorConfig.VFIODevices {
+			if !strings.HasPrefix(dev.HostPath, pkgDevice.IommufdDevPath) && q.config.ConfidentialGuest {
+				return fmt.Errorf("ConfidentialGuest needs IOMMUFD - cannot use %s", dev.HostPath)
+			}
 		}
+		numOfPluggablePorts += uint32(len(hypervisorConfig.VFIODevices))
 	}
-	numOfPluggablePorts += uint32(len(hypervisorConfig.VFIODevices))
 
 	// Reset the VFIO root-bus slot allocator at the start of each VM so that
 	// multifunction groups get deterministic, non-overlapping addresses.

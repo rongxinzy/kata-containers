@@ -2,29 +2,30 @@
 # run-all.sh — End-to-end deployment + verification
 #
 # Usage:
-#   bash run-all.sh              # full pipeline (default)
-#   bash run-all.sh --k          # VFIO containers only
-#   bash run-all.sh --d          # Docker container only
+#   bash run-all.sh                    # full pipeline, 4 groups (default)
+#   bash run-all.sh --groups=2         # full pipeline, 2 groups (16 GPU each)
+#   bash run-all.sh --k                # VFIO only
+#   bash run-all.sh --d                # Docker only
+#   bash run-all.sh --k --groups=2     # VFIO only, 2 groups
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-MODE="${1:-all}"
 RUN_VFIO=true
 RUN_DOCKER=true
-case "$MODE" in
-    --k|--vfio)     RUN_VFIO=true;  RUN_DOCKER=false ;;
-    --d|--docker)   RUN_VFIO=false; RUN_DOCKER=true ;;
-    ""|all)         ;;  # both
-    *)
-        echo "Usage: $0 [--k|--d]"
-        exit 1
-        ;;
-esac
+NUM_GROUPS=4
+
+for arg in "$@"; do
+    case "$arg" in
+        --k|--vfio)     RUN_VFIO=true;  RUN_DOCKER=false ;;
+        --d|--docker)   RUN_VFIO=false; RUN_DOCKER=true ;;
+        --groups=*)     NUM_GROUPS="${arg#*=}" ;;
+    esac
+done
 
 echo "============================================"
 echo " VFIO + Docker Deployment"
-echo " Scope: $($RUN_VFIO && echo VFIO) $($RUN_DOCKER && echo Docker)"
+echo " Groups: ${NUM_GROUPS}, Scope: $($RUN_VFIO && echo VFIO) $($RUN_DOCKER && echo Docker)"
 echo " $(date)"
 echo "============================================"
 
@@ -57,8 +58,8 @@ bash "${SCRIPT_DIR}/build-nccl.sh"
 # Step 3: Deploy (split phases)
 if $RUN_VFIO; then
     echo
-    echo "=== Step 3a: VFIO containers ==="
-    bash "${SCRIPT_DIR}/deploy-containers.sh" --k
+    echo "=== Step 3a: VFIO containers (${NUM_GROUPS} groups) ==="
+    bash "${SCRIPT_DIR}/deploy-containers.sh" --k --groups=${NUM_GROUPS}
 fi
 
 if $RUN_DOCKER; then

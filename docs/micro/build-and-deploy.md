@@ -237,6 +237,36 @@ ssh root@${TARGET_HOST} "
 "
 ```
 
+### 5.5 16 GPU 宿主机配置
+
+16 GPU 单容器部署需要额外配置：
+
+```bash
+ssh root@${TARGET_HOST} "
+    # 1. 设置 GPU FLR（避免 VFIO bus reset 超时）
+    for iommu in \$(cat /tmp/kata-iommu-groups.txt); do
+        for dev in \$(ls /sys/kernel/iommu_groups/\$iommu/devices/ | grep '\.0\$'); do
+            echo flr > /sys/bus/pci/devices/\$dev/reset_method
+        done
+    done
+
+    # 2. 增大 vhost 内存区域上限（16 GPU ~100 区域 > 默认 64）
+    modprobe -r vhost_vsock vhost_net vhost 2>/dev/null
+    modprobe vhost max_mem_regions=256
+    modprobe vhost_vsock
+    modprobe vhost_net
+
+    # 验证
+    cat /sys/module/vhost/parameters/max_mem_regions  # → 256
+
+    # 3. 增加 kata agent 超时
+    sed -i 's|agent.launch_process_timeout=[0-9]*|agent.launch_process_timeout=120|' \\
+        /etc/kata-containers/configuration.toml
+"
+```
+
+> 详细排查记录见 `test-single-16.md`。
+
 ---
 
 ## 6. 验证部署
@@ -302,6 +332,9 @@ ssh root@${TARGET_HOST} "systemctl restart containerd"
 | 容器 `Created` 不启动 | containerd 状态残留，清空 `/var/lib/containerd/*` |
 | 新 QEMU 不生效 | 确认 `chmod +x` 后 `systemctl restart containerd` |
 | `GLIBC_2.38 not found` / `SLIRP_4.7 not found` | 见 §8.1 |
+| 16 GPU QEMU 启动时卡死在 VFIO reset | `echo flr > /sys/bus/pci/devices/<BDF>/reset_method` |
+| 16 GPU 容器超时 (vhost error 7) | `modprobe vhost max_mem_regions=256` |
+| NCCL P2P 带宽低（~2 GB/s） | 设置容器环境变量 `NCCL_P2P_LEVEL=5` |
 
 ### 8.1 glibc 版本不兼容
 

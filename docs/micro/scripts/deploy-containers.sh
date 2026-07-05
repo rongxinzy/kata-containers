@@ -2,10 +2,12 @@
 # deploy-containers.sh — Deploy VFIO containers and/or Docker container
 #
 # Usage:
-#   bash deploy-containers.sh           # deploy both (default)
-#   bash deploy-containers.sh --k       # deploy only VFIO containers
-#   bash deploy-containers.sh --d       # deploy only Docker container
-#   bash deploy-containers.sh --all     # deploy both (explicit)
+#   bash deploy-containers.sh                        # deploy both, 4 groups (default)
+#   bash deploy-containers.sh --groups=2             # deploy both, 2 groups (16 GPU each)
+#   bash deploy-containers.sh --groups=4             # deploy both, 4 groups (8 GPU each)
+#   bash deploy-containers.sh --k                    # deploy only VFIO containers
+#   bash deploy-containers.sh --d                    # deploy only Docker container
+#   bash deploy-containers.sh --k --groups=2         # VFIO only, 2 groups
 #
 # Prerequisites: bind-gpu.sh must be run first (produces /tmp/kata-iommu-groups.txt)
 set -euo pipefail
@@ -13,32 +15,69 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 1. Argument parsing
 # ---------------------------------------------------------------------------
-PHASE="${1:-all}"
+PHASE="all"
 RUN_VFIO=false
 RUN_DOCKER=false
-case "$PHASE" in
-    --k|--vfio)       RUN_VFIO=true; RUN_DOCKER=false ;;
-    --d|--docker)     RUN_VFIO=false; RUN_DOCKER=true ;;
-    --all|all|"")     RUN_VFIO=true; RUN_DOCKER=true ;;
-    -h|--help)
-        echo "Usage: $0 [--k|--d|--all]"
-        echo
-        echo "  --k     Deploy only VFIO containers (g1..g4)"
-        echo "  --d     Deploy only Docker container (vllm-docker)"
-        echo "  --all   Deploy both (default)"
-        echo
-        echo "Prerequisites: bash bind-gpu.sh must be run first."
-        exit 0
-        ;;
-    *)
-        echo "ERROR: unknown argument '$PHASE'. Use --k, --d, or --all." >&2
-        exit 1
-        ;;
-esac
+NUM_GROUPS=4
 
-IMG="${2:-vllm/vllm-openai:v0.21.0-x86_64-cu129}"
-VFIO_MEM="${3:-32g}"
-VFIO_CPUS="${4:-16}"
+for arg in "$@"; do
+    case "$arg" in
+        --k|--vfio)       RUN_VFIO=true ;;
+        --d|--docker)     RUN_DOCKER=true ;;
+        --groups=*)       NUM_GROUPS="${arg#*=}" ;;
+        --all|all)        RUN_VFIO=true; RUN_DOCKER=true ;;
+        -h|--help)
+            echo "Usage: $0 [--k|--d|--all] [--groups=N]"
+            echo
+            echo "  --k         Deploy only VFIO containers"
+            echo "  --d         Deploy only Docker container"
+            echo "  --all       Deploy both (default)"
+            echo "  --groups=N  Number of VFIO container groups: 2 (16 GPU each) or 4 (8 GPU each, default)"
+            echo
+            echo "Prerequisites: bash bind-gpu.sh must be run first."
+            echo "Examples:"
+            echo "  $0                          # 4 groups × 8 GPU (default)"
+            echo "  $0 --groups=2               # 2 groups × 16 GPU"
+            echo "  $0 --k --groups=2           # VFIO only, 2 groups × 16 GPU"
+            exit 0
+            ;;
+        *)  ;;
+    esac
+done
+
+# Default: if no phase specified, run both
+if ! $RUN_VFIO && ! $RUN_DOCKER; then
+    case "$PHASE" in
+        all|"") RUN_VFIO=true; RUN_DOCKER=true ;;
+    esac
+fi
+
+# Validate groups
+if [ "$NUM_GROUPS" != "2" ] && [ "$NUM_GROUPS" != "4" ]; then
+    echo "ERROR: --groups must be 2 or 4" >&2
+    exit 1
+fi
+
+# Defaults (parsed args override later)
+IMG="vllm/vllm-openai:v0.21.0-x86_64-cu129"
+VFIO_MEM="32g"
+VFIO_CPUS="16"
+
+# Override from command line (positional params after flags)
+for arg in "$@"; do
+    case "$arg" in
+        -m=*)   VFIO_MEM="${arg#*=}" ;;
+        --mem=*) VFIO_MEM="${arg#*=}" ;;
+        --cpus=*) VFIO_CPUS="${arg#*=}" ;;
+        --img=*) IMG="${arg#*=}" ;;
+    esac
+done
+
+# Override memory for 16 GPU mode
+if [ "$NUM_GROUPS" = "2" ] && [ "$VFIO_MEM" = "32g" ]; then
+    VFIO_MEM="96g"
+    VFIO_CPUS="32"
+fi
 
 log()  { echo "[$(date '+%H:%M:%S')] $*"; }
 phase() { echo; echo "============================================================"; echo " $*"; echo "============================================================"; }
@@ -60,22 +99,37 @@ if $RUN_VFIO; then
     done < "$IOMMU_FILE"
 
     TOTAL=${#IOMMU_GROUPS[@]}
-    if [ "$TOTAL" -lt 8 ]; then
-        echo "ERROR: Only $TOTAL IOMMU groups found, need at least 8" >&2
+    MIN_NEEDED=$((NUM_GROUPS * 8))
+    if [ "$TOTAL" -lt "$MIN_NEEDED" ]; then
+        echo "ERROR: Only $TOTAL IOMMU groups found, need at least $MIN_NEEDED" >&2
         exit 1
     fi
 
-    GROUP_SIZE=$((TOTAL/4))
+    GROUP_SIZE=$((TOTAL/NUM_GROUPS))
     BASE_PORT=8014
+    GPU_PER_CONTAINER=$((TOTAL/NUM_GROUPS))
 
-    log "IOMMU groups=$TOTAL, per group=$GROUP_SIZE, 4 groups total"
+    # Set NCCL P2P level based on GPU count per container
+    if [ "$GPU_PER_CONTAINER" -ge 16 ]; then
+        NCCL_P2P_LEVEL=5
+    else
+        NCCL_P2P_LEVEL=SYS
+    fi
+
+    # Container names
+    VFIO_NAMES=()
+    for i in $(seq 1 $NUM_GROUPS); do
+        VFIO_NAMES+=("g${i}")
+    done
+
+    log "Mode: ${NUM_GROUPS} groups × ${GPU_PER_CONTAINER} GPU, NCCL_P2P_LEVEL=${NCCL_P2P_LEVEL}, MEM=${VFIO_MEM}"
 fi
 
 # =========================================================================
 # Phase: VFIO (Kata) Containers
 # =========================================================================
 deploy_vfio() {
-    phase "Phase: VFIO containers (g1..g4)"
+    phase "Phase: VFIO containers (${NUM_GROUPS} groups × ${GPU_PER_CONTAINER} GPU each)"
 
     # --- Configuration ---
     log "Configuring runtime..."
@@ -85,11 +139,17 @@ deploy_vfio() {
     sed -i "s|^default_vcpus = .*|default_vcpus = ${VFIO_CPUS}|" /etc/kata-containers/configuration.toml
     sed -i 's|^default_memory = .*|default_memory = 16384|' /etc/kata-containers/configuration.toml
     sed -i 's|^memory_slots = .*|memory_slots = 1|' /etc/kata-containers/configuration.toml
-    sed -i 's|^pcie_root_port = .*|pcie_root_port = 8|' /etc/kata-containers/configuration.toml
+    if [ "$GPU_PER_CONTAINER" -ge 16 ]; then
+        # 16 GPU mode: no root ports needed, save PCI slots for vhost devices
+        sed -i 's|^pcie_root_port = .*|pcie_root_port = 0|' /etc/kata-containers/configuration.toml
+    else
+        sed -i 's|^pcie_root_port = .*|pcie_root_port = 8|' /etc/kata-containers/configuration.toml
+    fi
     sed -i 's|^cold_plug_vfio = .*|cold_plug_vfio = "root-port"|' /etc/kata-containers/configuration.toml
     sed -i 's|^disable_selinux = .*|disable_selinux = true|' /etc/kata-containers/configuration.toml
     sed -i 's|^kernel_params = .*|kernel_params = "nvidia_uvm.uvm_ats_mode=0 nvidia.NVreg_DmaRemapPeerMmio=0 nvidia.NVreg_EnableResizableBar=0 pci=nocrs pci=assign-busses cgroup_no_v1=all"|' /etc/kata-containers/configuration.toml
     sed -i 's|^enable_hugepages = .*|enable_hugepages = false|' /etc/kata-containers/configuration.toml
+    sed -i 's|agent.launch_process_timeout=[0-9]*|agent.launch_process_timeout=120|' /etc/kata-containers/configuration.toml
 
     cp /etc/kata-containers/configuration.toml /opt/kata/share/defaults/kata-containers/configuration-qemu.toml
     mkdir -p /opt/kata/share/defaults/kata-containers/runtimes/qemu-nvidia-gpu
@@ -108,19 +168,16 @@ MEMLOCK
     # --- Clean stale containers & restart containerd ---
     log "Cleaning stale containers and restarting containerd..."
 
-    # Remove known VFIO containers gracefully
-    for NAME in g1 g2 g3 g4; do
+    for NAME in "${VFIO_NAMES[@]}"; do
         nerdctl rm -f "${NAME}" 2>/dev/null || true
         ctr -n default tasks delete "${NAME}" 2>/dev/null || true
         ctr -n default containers delete "${NAME}" 2>/dev/null || true
     done
 
-    # Kill any lingering QEMU/shims from previous runs
     pkill -9 qemu-system 2>/dev/null || true
     pkill -9 containerd-shim 2>/dev/null || true
     sleep 2
 
-    # Clean runtime scratch dirs (not containerd data)
     rm -rf /run/vc /run/containerd
     systemctl restart containerd
     sleep 3
@@ -145,8 +202,8 @@ MEMLOCK
         log "Image already present in containerd."
     fi
 
-    # --- Deploy 4 containers ---
-    for gid in 0 1 2 3; do
+    # --- Deploy N containers ---
+    for gid in $(seq 0 $((NUM_GROUPS - 1))); do
         start=$((gid * GROUP_SIZE))
         end=$((start + GROUP_SIZE - 1))
 
@@ -160,7 +217,7 @@ MEMLOCK
         done
 
         PORT=$((BASE_PORT + gid))
-        NAME="g$((gid+1))"
+        NAME="${VFIO_NAMES[$gid]}"
 
         log ">>> ${NAME} (port ${PORT}, groups: ${local_groups})"
 
@@ -174,17 +231,18 @@ MEMLOCK
         nerdctl rm -f "${NAME}" 2>/dev/null || true
         nerdctl run -d --pull never --runtime io.containerd.kata.v2 --name "${NAME}" \
             ${DEVICE_ARGS} -m "${VFIO_MEM}" -p "${PORT}:8000" -v /models:/models \
+            --env NCCL_P2P_LEVEL=${NCCL_P2P_LEVEL} \
             --env NVIDIA_VISIBLE_DEVICES=void --env NVIDIA_DRIVER_CAPABILITIES=compute,utility \
             --entrypoint /bin/bash "${IMG}" -c "sleep infinity"
 
         log "  Waiting for GPU..."
-        for i in $(seq 1 30); do
+        for i in $(seq 1 60); do
             sleep 5
             if nerdctl exec "${NAME}" nvidia-smi -L >/dev/null 2>&1; then
                 log "  [${NAME}] ready ($((i*5))s)"
                 break
             fi
-            [ $((i % 6)) -eq 0 ] && log "  [${NAME}] ...($((i*5))s)"
+            [ $((i % 12)) -eq 0 ] && log "  [${NAME}] ...($((i*5))s)"
         done
 
         nerdctl exec "${NAME}" nvidia-smi -L | wc -l | xargs echo "  GPU count:"
@@ -234,8 +292,8 @@ fi
 phase "Summary"
 
 if $RUN_VFIO; then
-    echo "--- VFIO containers ---"
-    nerdctl ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E '^g[1-4]' || echo "  (none)"
+    echo "--- VFIO containers (${NUM_GROUPS} groups) ---"
+    nerdctl ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "^g[1-${NUM_GROUPS}]" || echo "  (none)"
     echo "QEMU processes: $(ps aux | grep qemu-system | grep -v grep | wc -l)"
 fi
 

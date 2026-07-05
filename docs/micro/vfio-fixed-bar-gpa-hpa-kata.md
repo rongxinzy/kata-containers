@@ -84,6 +84,55 @@ Added to the base kernel parameters:
 
 These tell the Linux guest not to reallocate PCI resources and to ignore the host CRS, keeping the preset BAR addresses.
 
+#### PCIe topology: reduce unnecessary root ports
+
+File: `src/runtime/virtcontainers/qemu.go`, function `createPCIeTopology()`
+
+When `ColdPlugVFIO=RootPort`, cold-plug VFIO devices are attached directly to `pcie.0` and bypass root ports entirely. The code change prevents inflating the root-port count for these devices:
+
+```go
+if q.state.ColdPlugVFIO != config.RootPort {
+    for _, dev := range hypervisorConfig.VFIODevices { ... }
+    numOfPluggablePorts += uint32(len(hypervisorConfig.VFIODevices))
+}
+```
+
+This saves `(GPU_count - pcie_root_port) × 4KB` of IO space and corresponding PCIe slots.
+
+#### VFIO root bus slot base adjustment
+
+File: `src/runtime/virtcontainers/qemu_arch_base.go`
+
+```go
+// ICH9-LPC is fixed at slot 31 (0x1f) on Q35, avoid collision
+const vfioRootSlotBase = 15  // was 16
+```
+
+### 4. NVIDIA NCCL P2P configuration
+
+When using GPUDirect P2P with the `x-nv-gpudirect-clique` QEMU parameter, the NVIDIA driver inside the guest sees all GPUs as P2P-capable (`nvidia-smi topo -p2p r` shows all "OK"). However, the virtual PCIe topology on `pcie.0` shows all GPU pairs as "PHB" (through PCIe Host Bridge), causing NCCL to refuse direct P2P at default `P2P_LEVEL=SYS`.
+
+**Fix**: Set environment variable in container or vLLM launch:
+```bash
+export NCCL_P2P_LEVEL=5  # Ignore virtual topology, force local P2P
+```
+
+### 5. Host requirements for 16 GPUs
+
+**VFIO FLR (Function Level Reset)** — Required to prevent QEMU stuck during device initialization:
+```bash
+for dev in /sys/bus/pci/devices/0000:XX:00.0; do
+    echo flr > $dev/reset_method
+done
+```
+
+**vhost memory regions** — 16 GPUs need ~100 memory regions, exceeding the kernel default of 64:
+```bash
+modprobe -r vhost_vsock vhost_net vhost
+modprobe vhost max_mem_regions=256
+modprobe vhost_vsock vhost_net
+```
+
 ## Build Instructions
 
 ### Build patched QEMU
@@ -192,6 +241,42 @@ Kata config to use:
   vfio_mode = "guest-kernel"
   firmware = "/opt/kata/share/ovmf/OVMF.fd"
   enable_hugepages = true
+```
+
+### Host requirements for 16 GPU single-container deployment
+
+For deploying **16 GPUs in a single Kata container**, the following additional host-level configuration is required:
+
+#### FLR (Function Level Reset)
+
+Disable PCI bus reset to prevent QEMU from hanging during VFIO device open (kernel `pci_bridge_wait_for_secondary_bus` timeout):
+
+```bash
+for iommu in $(cat /tmp/kata-iommu-groups.txt); do
+    for dev in $(ls /sys/kernel/iommu_groups/$iommu/devices/ | grep '\.0$'); do
+        echo flr > /sys/bus/pci/devices/$dev/reset_method
+    done
+done
+```
+
+#### vhost memory regions
+
+16 GPUs create ~100 memory regions (GPUs × MMIO BARs + guest RAM), exceeding the default kernel vhost limit of 64:
+
+```bash
+modprobe -r vhost_vsock vhost_net vhost
+modprobe vhost max_mem_regions=256
+modprobe vhost_vsock vhost_net
+# verify: cat /sys/module/vhost/parameters/max_mem_regions → 256
+```
+
+#### Kata agent timeout
+
+Increase agent launch timeout (default 15s is insufficient for large VMs):
+
+```toml
+# /etc/kata-containers/configuration.toml
+agent.launch_process_timeout = 120
 ```
 
 ### Hugepages for multi-GPU / multi-VM deployments
