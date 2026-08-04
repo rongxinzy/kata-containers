@@ -71,6 +71,7 @@ container_build+=" --build-arg ARCH=${ARCH:-}"
 	-w "${PWD}" \
 	--env KERNEL_DEBUG_ENABLED="${KERNEL_DEBUG_ENABLED}" \
 	--env KBUILD_SIGN_PIN="${KBUILD_SIGN_PIN}" \
+	--env GITHUB_TOKEN="${GITHUB_TOKEN:-}" \
 	--user "$(id -u)":"$(id -g)" \
 	"${container_image}" \
 	bash -c "${kernel_builder} ${kernel_builder_args} setup"
@@ -78,6 +79,7 @@ container_build+=" --build-arg ARCH=${ARCH:-}"
 "${container_engine}" run --rm -i -v "${repo_root_dir}:${repo_root_dir}" \
 	-w "${PWD}" \
 	--env KERNEL_DEBUG_ENABLED="${KERNEL_DEBUG_ENABLED}" \
+	--env GITHUB_TOKEN="${GITHUB_TOKEN:-}" \
 	--user "$(id -u)":"$(id -g)" \
 	"${container_image}" \
 	bash -c "${kernel_builder} ${kernel_builder_args} build"
