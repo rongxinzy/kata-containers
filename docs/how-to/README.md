@@ -27,6 +27,7 @@
 
 ## Advanced Topics
 
+- [Build the NVIDIA P2P-patched Kata release](how-to-build-nvidia-p2p-patched-release.md)
 - [How to use Kata Containers with virtio-fs](how-to-use-virtio-fs-with-kata.md)
 - [Setting Sysctls with Kata](how-to-use-sysctls-with-kata.md)
 - [What Is VMCache and How To Enable It](what-is-vm-cache-and-how-do-I-use-it.md)
@@ -53,4 +54,3 @@
 - [How to use passthroughfd-IO with runtime-rs and Dragonball](how-to-use-passthroughfd-io-within-runtime-rs.md)
 - [How to use EROFS snapshotter with Kata Containers](how-to-use-erofs-snapshotter-with-kata.md)
 - [How to use NUMA with Kata Containers](how-to-use-numa-with-kata.md)
-
