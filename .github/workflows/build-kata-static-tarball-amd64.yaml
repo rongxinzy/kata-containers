@@ -2,7 +2,7 @@ name: CI | Build kata-static tarball for amd64
 on:
   push:
     branches:
-      - release-3.29.0-patch-p2p
+      - release-3.32.0-patch-p2p
   workflow_call:
     inputs:
       stage:
