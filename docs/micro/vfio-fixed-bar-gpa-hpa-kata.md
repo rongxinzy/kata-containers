@@ -237,7 +237,7 @@ Kata config to use:
 ```toml
 /etc/kata-containers/configuration.toml:
   cold_plug_vfio = "root-port"
-  pcie_root_port = 8
+  pcie_root_port = 4            # 16 GPU 时必须 ≤4，否则 pcie.0 slot 耗尽
   vfio_mode = "guest-kernel"
   firmware = "/opt/kata/share/ovmf/OVMF.fd"
   enable_hugepages = true

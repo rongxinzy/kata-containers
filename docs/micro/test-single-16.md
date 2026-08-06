@@ -88,6 +88,33 @@ modprobe vhost_net
 
 验证: `cat /sys/module/vhost/parameters/max_mem_regions` → `256`
 
+### 瓶颈 6: pcie.0 slot 耗尽 → vhost-user-fs-pci 无处可放（已修复）
+
+**根因**: Q35 的 pcie.0 只有 32 个 slot。当 `pcie_root_port = 8` 时：
+- 8 个 root port 占用 slots 0-7
+- 1 个 pci-bridge（`default_bridges=1`）占用 1 个 slot
+- 16 个 GPU（multifunction=on）占用 slots 15-30
+- ICH9-LPC 固定 slot 31
+- **合计占用/预留 27 个 slot，仅剩 5 个空闲**
+
+virtio 设备（virtio-serial-pci, virtio-blk-pci, vhost-vsock-pci, vhost-user-fs-pci）无法分配到 slot，QEMU 直接报错退出：
+
+```
+qemu-system-x86_64: -device vhost-user-fs-pci,...: PCI: no slot/function
+available for vhost-user-fs-pci, all in use or reserved
+```
+
+**为何 15 GPU 能启动**: 15 GPU 占用 slots 15-29（而非 30），多出 1 个空闲 slot，恰好够 vhost-user-fs-pci 使用。
+
+**修复**: `pcie_root_port` 从 8 降为 **4**。冷插拔 GPU 直连 pcie.0 不经 root port，root port 只用于热插拔预留，4 个足够。
+
+```toml
+# /etc/kata-containers/configuration.toml
+pcie_root_port = 4   # 16 GPU 时必须 ≤4，否则 pcie.0 slot 耗尽
+```
+
+**注意**: 仅减小 `pcie_root_port` 还不够，**必须同时部署包含 `vfioRootSlotBase=15` 修复的二进制**（瓶颈 1），否则 16 个 GPU 仍会因 slot 31 碰撞而失败。
+
 ---
 
 ## Kata Runtime 代码改动

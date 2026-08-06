@@ -25,11 +25,13 @@
 ```bash
 cd /home/bingo/kata-containers
 
-# 当前使用的版本（不含 CDI 修复，CDI 修复有 bug）
-git log --oneline -1 8ae7b7d
-# 8ae7b7d runtime: Enable NVIDIA GPUDirect P2P for VFIO fixed-BAR GPU passthrough
+# 当前使用的版本（含 vfioRootSlotBase=15 和 pcie_root_port=4 修复）
+git log --oneline -1 10bb6af
+# 10bb6af Merge branch 'release-3.29.0-patch-p2p' into vfio-fixed-bar-gpa-hpa-multifunction
 ```
 
+> **关键修复**: commit `258c79c96` 将 `vfioRootSlotBase` 从 16 改为 15，16 GPU 才能避开 ICH9-LPC 的 slot 31。**编译后务必验证 `kata-runtime --version` 显示 commit ≥ `258c79c96`。**
+>
 > **注意**: CDI 修复提交 `e629822`（`skip_cdi_annotations`）会导致容器无法启动，**不要使用**。
 
 ### 2.2 编译命令
@@ -243,6 +245,11 @@ ssh root@${TARGET_HOST} "
 
 ```bash
 ssh root@${TARGET_HOST} "
+    # 0. 设置 pcie_root_port = 4（关键！16 GPU 时若设为 8 会导致 pcie.0 slot 耗尽，
+    #    vhost-user-fs-pci 设备报 "no slot/function available" 而 QEMU 启动失败）
+    sed -i 's|^pcie_root_port = .*|pcie_root_port = 4|' \\
+        /etc/kata-containers/configuration.toml
+
     # 1. 设置 GPU FLR（避免 VFIO bus reset 超时）
     for iommu in \$(cat /tmp/kata-iommu-groups.txt); do
         for dev in \$(ls /sys/kernel/iommu_groups/\$iommu/devices/ | grep '\.0\$'); do
@@ -334,6 +341,7 @@ ssh root@${TARGET_HOST} "systemctl restart containerd"
 | `GLIBC_2.38 not found` / `SLIRP_4.7 not found` | 见 §8.1 |
 | 16 GPU QEMU 启动时卡死在 VFIO reset | `echo flr > /sys/bus/pci/devices/<BDF>/reset_method` |
 | 16 GPU 容器超时 (vhost error 7) | `modprobe vhost max_mem_regions=256` |
+| 16 GPU QEMU 报 `no slot/function available for vhost-user-fs-pci` 退出 | pcie.0 slot 耗尽：`pcie_root_port` 从 8 降为 4（16 GPU 占用 slot 15-30 + 8 root port > 32 slot 上限） |
 | NCCL P2P 带宽低（~2 GB/s） | 设置容器环境变量 `NCCL_P2P_LEVEL=5` |
 
 ### 8.1 glibc 版本不兼容
