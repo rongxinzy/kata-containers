@@ -110,7 +110,7 @@ const vfioRootSlotBase = 15  // was 16
 
 ### 4. NVIDIA NCCL P2P configuration
 
-When using GPUDirect P2P with the `x-nv-gpudirect-clique` QEMU parameter, the NVIDIA driver inside the guest sees all GPUs as P2P-capable (`nvidia-smi topo -p2p r` shows all "OK"). However, the virtual PCIe topology on `pcie.0` shows all GPU pairs as "PHB" (through PCIe Host Bridge), causing NCCL to refuse direct P2P at default `P2P_LEVEL=SYS`.
+When using GPUDirect P2P with the `x-nv-gpudirect-clique` QEMU parameter, the NVIDIA driver inside the guest sees all GPUs as P2P-capable (`dx-smi topo -p2p r` shows all "OK"). However, the virtual PCIe topology on `pcie.0` shows all GPU pairs as "PHB" (through PCIe Host Bridge), causing NCCL to refuse direct P2P at default `P2P_LEVEL=SYS`.
 
 **Fix**: Set environment variable in container or vLLM launch:
 ```bash

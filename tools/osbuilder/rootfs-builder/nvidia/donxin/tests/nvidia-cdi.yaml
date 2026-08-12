@@ -1,0 +1,34 @@
+---
+cdiVersion: 0.5.0
+kind: nvidia.com/gpu
+devices:
+    - name: "0"
+      containerEdits:
+        deviceNodes:
+            - path: /dev/nvidia0
+containerEdits:
+    mounts:
+        - hostPath: /lib/x86_64-linux-gnu/libcuda.so.1
+          containerPath: /lib/x86_64-linux-gnu/libcuda.so.1
+          options:
+            - ro
+            - nosuid
+            - nodev
+            - rbind
+            - rprivate
+        - hostPath: /bin/nvidia-smi
+          containerPath: /bin/nvidia-smi
+          options:
+            - ro
+            - nosuid
+            - nodev
+            - rbind
+            - rprivate
+        - hostPath: /bin/nvidia-persistenced
+          containerPath: /bin/nvidia-persistenced
+          options:
+            - ro
+            - nosuid
+            - nodev
+            - rbind
+            - rprivate

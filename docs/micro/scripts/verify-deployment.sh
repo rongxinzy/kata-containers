@@ -63,7 +63,7 @@ echo "=== 2. GPU Detection ==="
 if $RUN_VFIO; then
     VFIO_TOTAL=0
     for NAME in "${VFIO_NAMES[@]}"; do
-        count=$(nerdctl exec "${NAME}" nvidia-smi -L 2>/dev/null | wc -l || echo 0)
+        count=$(nerdctl exec "${NAME}" dx-smi -L 2>/dev/null | wc -l || echo 0)
         check "${NAME} GPU" "8" "$count"
         VFIO_TOTAL=$((VFIO_TOTAL + count))
     done

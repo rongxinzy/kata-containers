@@ -67,7 +67,7 @@ for gid in 1 6 7 8; do
     # Wait for ready
     READY=false
     for i in $(seq 1 60); do
-        if nerdctl exec "${NAME}" bash -c 'nvidia-smi -L >/dev/null 2>&1' 2>/dev/null; then
+        if nerdctl exec "${NAME}" bash -c 'dx-smi -L >/dev/null 2>&1' 2>/dev/null; then
             echo "  [G${gid}] Container ready after $((i*5))s"
             READY=true
             break
@@ -83,7 +83,7 @@ for gid in 1 6 7 8; do
 
     # Verify
     echo -n "  GPUs: "
-    nerdctl exec "${NAME}" nvidia-smi -L 2>&1 | wc -l | xargs echo -n
+    nerdctl exec "${NAME}" dx-smi -L 2>&1 | wc -l | xargs echo -n
     echo " detected"
 
     # Fixed-BAR check

@@ -324,7 +324,7 @@ deploy_group() {
     log "[group${idx}] Waiting for container to be ready"
     local ready=false
     for i in $(seq 1 60); do
-        if run_remote "nerdctl exec ${name} nvidia-smi -L" >/dev/null 2>&1; then
+        if run_remote "nerdctl exec ${name} dx-smi -L" >/dev/null 2>&1; then
             ready=true
             break
         fi
@@ -335,8 +335,8 @@ deploy_group() {
         return 1
     fi
 
-    log "[group${idx}] nvidia-smi GPU list"
-    run_remote "nerdctl exec ${name} nvidia-smi -L"
+    log "[group${idx}] dx-smi GPU list"
+    run_remote "nerdctl exec ${name} dx-smi -L"
 
     log "[group${idx}] Verifying fixed-BAR GPA=HPA (first GPU)"
     local first_dev

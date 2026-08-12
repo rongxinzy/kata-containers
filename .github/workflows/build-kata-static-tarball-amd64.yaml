@@ -205,6 +205,10 @@ jobs:
           path: kata-artifacts
           merge-multiple: true
 
+      - name: Test DONXIN guest command integration
+        if: ${{ contains(matrix.asset, 'nvidia-gpu') }}
+        run: tools/osbuilder/rootfs-builder/nvidia/donxin/tests/run.sh
+
       - name: Build ${{ matrix.asset }}
         id: build
         run: |

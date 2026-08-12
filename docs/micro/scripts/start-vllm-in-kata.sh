@@ -35,7 +35,7 @@ echo "===================="
 echo "Cleaning up old vLLM processes..."
 pkill -9 -f "vllm serve" 2>/dev/null || true
 sleep 2
-nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+dx-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 sleep 2
 
 # Clear old log

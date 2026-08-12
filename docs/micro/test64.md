@@ -341,7 +341,7 @@ nerdctl run -d \
 
 # 等待就绪
 for i in $(seq 1 60); do
-    if nerdctl exec "${NAME}" bash -c 'nvidia-smi -L >/dev/null 2>&1' 2>/dev/null; then
+    if nerdctl exec "${NAME}" bash -c 'dx-smi -L >/dev/null 2>&1' 2>/dev/null; then
         echo "[group${GROUP}] container ready"
         break
     fi
@@ -349,7 +349,7 @@ for i in $(seq 1 60); do
 done
 
 # 显示 GPU
-nerdctl exec "${NAME}" nvidia-smi -L
+nerdctl exec "${NAME}" dx-smi -L
 
 # 验证 fixed-BAR GPA=HPA（第一块 GPU）
 echo "[group${GROUP}] Guest BAR1:"
@@ -406,10 +406,10 @@ sshpass -p "${TARGET_PASS}" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFil
     echo '=== QEMU processes ==='
     ps aux | grep qemu-system-x86_64 | grep -v grep | wc -l
     echo
-    echo '=== nvidia-smi in each container ==='
+    echo '=== dx-smi in each container ==='
     for i in 1 2 3; do
         echo '--- kata-vfio-group'\${i}
-        nerdctl exec kata-vfio-group\${i} nvidia-smi -L || true
+        nerdctl exec kata-vfio-group\${i} dx-smi -L || true
     done
 "
 ```
@@ -479,7 +479,7 @@ start_group() {
         export NCCL_P2P_LEVEL=SYS
         pkill -9 -f \"vllm serve\" 2>/dev/null || true
         sleep 2
-        nvidia-smi --query-compute-apps=pid --format=csv,noheader | xargs -r kill -9 2>/dev/null || true
+        dx-smi --query-compute-apps=pid --format=csv,noheader | xargs -r kill -9 2>/dev/null || true
         rm -f ${log}
         nohup vllm serve ${MODEL_PATH} \\
             --served-model-name ${SERVED_MODEL_NAME} \\
@@ -700,14 +700,14 @@ echo "All benchmarks completed"
 | `failed to create shim task: create container timeout` | 可能是 ACS 未关闭、VFIO 组被占、或 hugepages 不足 | 检查 `dmesg`、确认无 D 状态进程、确认 `HugePages_Free` 足够 |
 | `unknown flag: --device /dev/vfio/N` | nerdctl 需要 `--device=/dev/vfio/N` 格式 | 修改脚本使用 `=` 连接 |
 | `failed to inject devices after CDI timeout of 100 seconds` | 宿主机 nvidia container toolkit 同时处理多个 CDI device 注入超时 | 添加 `--env NVIDIA_VISIBLE_DEVICES=void`，禁止把 host GPU 作为 CDI device 注入 |
-| 容器内 `nvidia-smi` 找不到，NCCL 报 `CUDA driver version is insufficient for CUDA runtime version` | NVIDIA 驱动库未注入到 guest 容器 | 保留 `--env NVIDIA_DRIVER_CAPABILITIES=compute,utility`，让 toolkit 注入驱动库；不要设为空字符串 |
+| 容器内 `dx-smi` 找不到，NCCL 报 `CUDA driver version is insufficient for CUDA runtime version` | NVIDIA 驱动库或 DONXIN 命令未注入到 guest 容器 | 保留 `--env NVIDIA_DRIVER_CAPABILITIES=compute,utility`，让 toolkit 注入驱动库；不要设为空字符串 |
 | `deploy_all_groups.sh` 部署 group 0 且 VFIO groups 为空 | 环境中存在 `GROUPS=0` 等变量覆盖了脚本内的数组 | 脚本改用 `GPU_GROUPS` 数组；执行前 `unset GROUPS` |
 | NCCL 带宽低（约 2 GB/s） | P2P 走 sysmem | 设置 `NCCL_P2P_LEVEL=SYS` 再测，应达 ~12 GB/s |
 | Guest BAR1 与 Host BAR1 不一致 | fixed-BAR 未生效 | 确认 QEMU 命令行包含 `x-fixed-bars=on` |
 | Domain 4 GPU 无法启动 | 硬件/BIOS 限制，仅识别 3 张 GPU | 不使用 Domain 4 |
 | Group 2 单独部署也报 `vfio_container_dma_map ... = -14 (Bad address)` | `/dev/shm` 被前 3 组 `memory-backend-file` 占满（默认 126 GB），剩余空间不足 40 GB；也可能是 `RLIMIT_MEMLOCK` 不足导致 VFIO 无法锁定内存 | 1. 临时扩容：`mount -o remount,size=200G /dev/shm`；2. 给 containerd 加 `LimitMEMLOCK=infinity`（见下方 memlock 说明） |
 | vLLM 启动报 `No available memory for the cache blocks` | 8×RTX 4060 仅 8 GB 显存，35B FP8 模型权重占用后 KV cache 不足 | 使用 `--dtype float16 --max-model-len 2048 --gpu-memory-utilization 0.90 --enforce-eager --max-num-seqs 128` |
-| 并发启动 vLLM 时部分组 GPU 空闲显存不足 0.95 利用率 | 各组独立 GPU，但前一次失败残留 worker 占用显存 | 启动前用 `nvidia-smi --query-compute-apps=pid --format=csv,noheader \| xargs -r kill -9` 清理 |
+| 并发启动 vLLM 时部分组 GPU 空闲显存不足 0.95 利用率 | 各组独立 GPU，但前一次失败残留 worker 占用显存 | 启动前用 `dx-smi --query-compute-apps=pid --format=csv,noheader \| xargs -r kill -9` 清理 |
 | Group 2/4 外部端口健康检查无响应，容器内部 200 | 旧 CNI NAT 规则残留，端口 DNAT 到已不存在的 IP（如 8007→10.4.0.68、8009→10.4.0.70） | 检查并修正 `iptables -t nat -L CNI-HOSTPORT-DNAT -n` 中的 DNAT 目标为当前容器 IP（8007→10.4.0.72、8009→10.4.0.71），或清理 `/var/lib/cni/results` 后重启 containerd |
 | G2/G5 容器 `CDI timeout of 100 seconds` | NVRC 在桥 6a ≥3 GPU 时无法生成 `/var/run/cdi/nvidia.yaml`，agent 空等 100s | **已修复（commit `e629822`）**：配置 `skip_cdi_annotations = ["vfio139", ...]` 跳过 CDI 注解生成。详见 §22 |
 | G2 桥 6a GPU 在 guest 内 NVIDIA probe 失败 | Guest PCI MMIO 窗口不足导致 BAR 地址冲突 | 待修复：增大 QEMU PCI MMIO 窗口或使用其他桥上的 GPU |
@@ -1507,7 +1507,7 @@ Node 0 承载 G1+G8 = ~108 GB，超过 64 GB 物理容量 → 跨 Node 内存访
 1. **`--tokenizer` 必须指向本地路径**：容器内无网络，不加 `--tokenizer /models/...` 会导致每个 case 卡 2 分钟等网络超时（`Network is unreachable`）。不可用 `--skip-tokenizer-init`（会导致 tokenizer=None 崩溃）。
 
 2. **nerdctl exec 的 Kata 限制**：
-   - 管道命令（`nvidia-smi | xargs kill`）在容器内通过 `nerdctl exec bash -c "..."` 执行时可能导致 exit code 9（SIGKILL）
+   - 管道命令（`dx-smi | xargs kill`）在容器内通过 `nerdctl exec bash -c "..."` 执行时可能导致 exit code 9（SIGKILL）
    - PID 捕获（`echo $!`）也可能触发
    - **解决**：简单 nohup 命令（无管道、无 PID 捕获）稳定；复杂清理逻辑拆成多个简单 exec 调用
 

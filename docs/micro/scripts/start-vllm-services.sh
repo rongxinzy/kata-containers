@@ -58,7 +58,7 @@ DOCKER_PORT=8000
 GPU_PER_CONTAINER=8  # default, will be auto-detected
 
 for NAME in "${VFIO_NAMES[@]}"; do
-    GPU_COUNT=$(nerdctl exec "${NAME}" nvidia-smi -L 2>/dev/null | wc -l || echo 0)
+    GPU_COUNT=$(nerdctl exec "${NAME}" dx-smi -L 2>/dev/null | wc -l || echo 0)
     if [ "$GPU_COUNT" -ge 16 ]; then
         GPU_PER_CONTAINER=16
         break

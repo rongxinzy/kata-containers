@@ -380,7 +380,7 @@ run_remote "
 
 log "Waiting for container to be ready"
 sleep 5
-run_remote "nerdctl exec ${CONTAINER_NAME} nvidia-smi -L"
+run_remote "nerdctl exec ${CONTAINER_NAME} dx-smi -L"
 
 # ---------------------------------------------------------------------------
 # 7. Verify fixed-BAR: guest BAR1 == host BAR1

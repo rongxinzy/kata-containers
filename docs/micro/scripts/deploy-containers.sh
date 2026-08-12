@@ -238,14 +238,14 @@ MEMLOCK
         log "  Waiting for GPU..."
         for i in $(seq 1 60); do
             sleep 5
-            if nerdctl exec "${NAME}" nvidia-smi -L >/dev/null 2>&1; then
+            if nerdctl exec "${NAME}" dx-smi -L >/dev/null 2>&1; then
                 log "  [${NAME}] ready ($((i*5))s)"
                 break
             fi
             [ $((i % 12)) -eq 0 ] && log "  [${NAME}] ...($((i*5))s)"
         done
 
-        nerdctl exec "${NAME}" nvidia-smi -L | wc -l | xargs echo "  GPU count:"
+        nerdctl exec "${NAME}" dx-smi -L | wc -l | xargs echo "  GPU count:"
     done
 
     log "VFIO deployment done."
