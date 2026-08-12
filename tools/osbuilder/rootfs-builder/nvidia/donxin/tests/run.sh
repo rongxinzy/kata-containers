@@ -40,6 +40,12 @@ run_proxy_test dx-smi 'DX-SMI DONXIN-8120S DONXIN-8120 DONXIN-8140 donxin' 'DONX
 run_proxy_test lspci 'DONXIN-8120S DONXIN-8120 DONXIN-8140 donxin DONXIN:2805' 'DONXIN Corporation donxin_uvm'
 run_proxy_test lsmod 'donxin' 'DONXIN Corporation donxin_uvm'
 
+# Match the final-rootfs smoke-test contract: help must invoke the backend,
+# succeed, and expose only the DONXIN command surface.
+"${work_dir}/dx-smi" --help >"${work_dir}/help.output" 2>&1
+grep -qE 'DX-SMI|DONXIN|donxin' "${work_dir}/help.output"
+! grep -qE 'NVIDIA|nvidia' "${work_dir}/help.output"
+
 # The guest-only compatibility name must not filter NVRC's backend output.
 status=0
 "${work_dir}/nvidia-smi" >"${work_dir}/compat.stdout" 2>"${work_dir}/compat.stderr" || status=$?

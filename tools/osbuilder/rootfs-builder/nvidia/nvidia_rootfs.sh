@@ -253,11 +253,36 @@ install_donxin_gpu_commands() {
 	mkdir -p sbin usr/sbin
 	ln -sf ../bin/dx-smi sbin/lspci
 	ln -sf ../bin/dx-smi sbin/lsmod
+	ln -sf ../../bin/dx-smi usr/bin/dx-smi
 	ln -sf ../../bin/dx-smi usr/bin/lspci
 	ln -sf ../../bin/dx-smi usr/bin/lsmod
 	ln -sf ../../bin/dx-smi usr/sbin/lspci
 	ln -sf ../../bin/dx-smi usr/sbin/lsmod
 	ln -s /bin/busybox "${install_dir}/sysbox"
+}
+
+smoke_test_donxin_gpu_commands() {
+	echo "nvidia: smoke testing dx-smi in the final rootfs"
+
+	local output
+	if ! output=$(chroot . /usr/bin/dx-smi --help 2>&1); then
+		echo "${output}" >&2
+		die "dx-smi could not invoke its GPU query backend in the final rootfs"
+	fi
+
+	[[ -n "${output}" ]] || die "dx-smi returned empty help output"
+	if grep -Eq 'NVIDIA|nvidia' <<< "${output}"; then
+		echo "${output}" >&2
+		die "dx-smi exposed an unfiltered NVIDIA name"
+	fi
+	grep -Eq 'DX-SMI|DONXIN|donxin' <<< "${output}" || {
+		echo "${output}" >&2
+		die "dx-smi help output did not contain the DONXIN command surface"
+	}
+
+	printf '%s\n' "${output}" > \
+		"${BUILD_DIR}/dx-smi-${BUILD_VARIANT}.smoke-passed"
+	echo "nvidia: dx-smi final-rootfs smoke test passed"
 }
 
 chisseled_gpudirect() {
@@ -489,6 +514,9 @@ setup_nvidia_gpu_rootfs_stage_two() {
 
 	compress_rootfs
 	chroot . ldconfig
+	if echo "${stack}" | grep -Eq '(^|,)compute(,|$)'; then
+		smoke_test_donxin_gpu_commands
+	fi
 
 	popd >> /dev/null
 }

@@ -12,5 +12,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "stderr=NVIDIA Corporation nvidia_uvm\n");
 	for (int i = 1; i < argc; i++)
 		printf("arg[%d]=%s\n", i, argv[i]);
+	if (argc == 2 && strcmp(argv[1], "--help") == 0)
+		return 0;
 	return 7;
 }

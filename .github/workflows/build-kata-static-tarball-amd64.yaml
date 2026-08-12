@@ -228,6 +228,17 @@ jobs:
           RELEASE: ${{ inputs.stage == 'release' && 'yes' || 'no' }}
           KBUILD_SIGN_PIN: ${{ contains(matrix.asset, 'nvidia') && secrets.KBUILD_SIGN_PIN || '' }}
 
+      - name: Check dx-smi is callable in the final rootfs
+        if: ${{ contains(matrix.asset, 'nvidia-gpu') }}
+        run: |
+          variant=${KATA_ASSET#rootfs-image-}
+          result="build/dx-smi-${variant}.smoke-passed"
+          test -s "${result}"
+          grep -Eq 'DX-SMI|DONXIN|donxin' "${result}"
+          ! grep -Eq 'NVIDIA|nvidia' "${result}"
+        env:
+          KATA_ASSET: ${{ matrix.asset }}
+
       - name: store-artifact ${{ matrix.asset }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
