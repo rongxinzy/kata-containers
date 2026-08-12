@@ -31,9 +31,9 @@ run_proxy_test() {
 
 	"${work_dir}/${command_name}" -L >"${stdout_file}" 2>"${stderr_file}" || status=$?
 	[[ ${status} -eq 7 ]]
-	rg -q "${expected_stdout}" "${stdout_file}"
-	rg -q "${expected_stderr}" "${stderr_file}"
-	rg -q 'arg\[1\]=-L' "${stdout_file}"
+	grep -qE "${expected_stdout}" "${stdout_file}"
+	grep -qE "${expected_stderr}" "${stderr_file}"
+	grep -qE 'arg\[1\]=-L' "${stdout_file}"
 }
 
 run_proxy_test dx-smi 'DX-SMI DONXIN-8120S DONXIN-8120 DONXIN-8140 donxin' 'DONXIN Corporation donxin_uvm'
@@ -44,20 +44,20 @@ run_proxy_test lsmod 'donxin' 'DONXIN Corporation donxin_uvm'
 status=0
 "${work_dir}/nvidia-smi" >"${work_dir}/compat.stdout" 2>"${work_dir}/compat.stderr" || status=$?
 [[ ${status} -eq 7 ]]
-rg -q 'NVIDIA-SMI' "${work_dir}/compat.stdout"
+grep -qE 'NVIDIA-SMI' "${work_dir}/compat.stdout"
 
 cp "${script_dir}/nvidia-cdi.yaml" "${work_dir}/nvidia-cdi.yaml"
 "${work_dir}/cdi-transform" "${work_dir}/nvidia-cdi.yaml"
 
-rg -q 'containerPath: /usr/bin/dx-smi' "${work_dir}/nvidia-cdi.yaml"
-rg -q 'containerPath: /usr/bin/lspci' "${work_dir}/nvidia-cdi.yaml"
-rg -q 'containerPath: /usr/bin/lsmod' "${work_dir}/nvidia-cdi.yaml"
-rg -q 'containerPath: /usr/sbin/lsmod' "${work_dir}/nvidia-cdi.yaml"
-rg -q 'containerPath: /usr/libexec/donxin/gpu-query' "${work_dir}/nvidia-cdi.yaml"
-rg -q 'containerPath: /usr/libexec/donxin/sysbox' "${work_dir}/nvidia-cdi.yaml"
-! rg -q 'containerPath: .*/nvidia-smi' "${work_dir}/nvidia-cdi.yaml"
-! rg -q 'nvidia-smi' "${work_dir}/nvidia-cdi.yaml"
-rg -q 'containerPath: /bin/nvidia-persistenced' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /usr/bin/dx-smi' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /usr/bin/lspci' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /usr/bin/lsmod' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /usr/sbin/lsmod' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /usr/libexec/donxin/gpu-query' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /usr/libexec/donxin/sysbox' "${work_dir}/nvidia-cdi.yaml"
+! grep -qE 'containerPath: .*/nvidia-smi' "${work_dir}/nvidia-cdi.yaml"
+! grep -qE 'nvidia-smi' "${work_dir}/nvidia-cdi.yaml"
+grep -qE 'containerPath: /bin/nvidia-persistenced' "${work_dir}/nvidia-cdi.yaml"
 
 # A second pass has no compatibility mount to replace and must fail closed
 # without modifying the already branded specification.
