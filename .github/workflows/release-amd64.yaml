@@ -10,6 +10,8 @@ on:
         required: true
       KBUILD_SIGN_PIN:
         required: true
+      SOURCE_REPO_TOKEN:
+        required: true
 
 permissions: {}
 
@@ -22,6 +24,7 @@ jobs:
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
     permissions:
       contents: read
       packages: write

@@ -140,35 +140,28 @@ modprobe vhost_vsock vhost_net
 ```bash
 cd /home/bingo/kata-containers/tools/packaging/static-build/qemu
 export PATH="/root/go/bin:$PATH"
+export SOURCE_REPO_TOKEN="<read-only-token>"
 ./build-static-qemu.sh
 ```
 
-Output: `kata-static-qemu.tar.gz` in the current directory.
+The build downloads the pinned fixed-BAR source from the private `rongxinzy/qemu` repository. Output: `kata-static-qemu.tar.gz` in the current directory.
 
 ### Build patched OVMF
 
-The Kata OVMF build uses the upstream `tianocore/edk2` version specified in `versions.yaml` (`edk2-stable202508`). The build applies the ProgramBar patch from `tools/packaging/static-build/ovmf/patches/` automatically.
+The OVMF build downloads the pinned ProgramBar fixed-BAR source from the private `rongxinzy/edk2` repository configured in `versions.yaml`:
 
-1. Ensure the official EDK2 source is cloned and its submodules are initialized:
+```bash
+cd /home/bingo/kata-containers/tools/packaging/static-build/ovmf
+export PATH="/root/go/bin:$PATH"
+export SOURCE_REPO_TOKEN="<read-only-token>"
+./build.sh
+```
 
-   ```bash
-   cd /home/bingo/kata-ovmf/edk2
-   git submodule update --init
-   ```
-
-2. Build OVMF from the local source directory:
-
-   ```bash
-   cd /home/bingo/kata-containers/tools/packaging/static-build/ovmf
-   export PATH="/root/go/bin:$PATH"
-   OVMF_LOCAL_DIR="/home/bingo/kata-ovmf/edk2" ./build.sh
-   ```
-
-   `OVMF_LOCAL_DIR` defaults to `/home/bingo/kata-ovmf/edk2` and can be overridden.
+Set `OVMF_LOCAL_DIR` explicitly only when an existing local EDK2 checkout should override the pinned download.
 
 Output: `edk2-x86_64.tar.gz` in the current directory.
 
-> **Note:** The previous approach of reusing the QEMU 8.2.2 submodule (`/home/bingo/qemu/roms/edk2`) is no longer used. OVMF is now built from the official `tianocore/edk2` source to align with Kata's version requirements.
+> **Note:** The previous hard-coded EDK2 paths are no longer used. QEMU and EDK2 are fetched during the build from commits pinned in `versions.yaml`.
 
 ### Build patched Kata runtime
 

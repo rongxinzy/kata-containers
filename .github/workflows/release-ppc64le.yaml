@@ -8,6 +8,8 @@ on:
     secrets:
       QUAY_DEPLOYER_PASSWORD:
         required: true
+      SOURCE_REPO_TOKEN:
+        required: true
 
 permissions: {}
 
@@ -19,6 +21,7 @@ jobs:
       stage: release
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
     permissions:
       contents: read
       packages: write

@@ -36,6 +36,7 @@ jobs:
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-and-push-assets-arm64:
     needs: release
@@ -50,6 +51,7 @@ jobs:
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-and-push-assets-s390x:
     needs: release
@@ -64,6 +66,7 @@ jobs:
     secrets:
       CI_HKD_PATH: ${{ secrets.CI_HKD_PATH }}
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-and-push-assets-ppc64le:
     needs: release
@@ -77,6 +80,7 @@ jobs:
       target-arch: ppc64le
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   publish-multi-arch-images:
     name: publish-multi-arch-images

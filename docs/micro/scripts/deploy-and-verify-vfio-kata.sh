@@ -14,6 +14,7 @@
 #   export TARGET_PASS=Admin@9000          # or use TARGET_KEY
 #   export GPU_VFIO_GROUPS="43 44 45 51 52 53 59 60"
 #   export TEST_GPUS=8
+#   export SOURCE_REPO_TOKEN=...           # read access to private EDK2/QEMU sources
 #   ./deploy-and-verify-vfio-kata.sh
 #
 # The script is intentionally linear and pauses before destructive steps so
@@ -119,8 +120,8 @@ if [[ "${SKIP_REBUILD}" != "true" ]]; then
     log "QEMU tarball ready: ${QEMU_TARBALL}"
 
     # Build patched OVMF
-    : "${EDK2_SRC:=/home/bingo/kata-ovmf/edk2}"
-    if [[ ! -f "${EDK2_SRC}/edksetup.sh" ]]; then
+    : "${EDK2_SRC:=}"
+    if [[ -n "${EDK2_SRC}" && ! -f "${EDK2_SRC}/edksetup.sh" ]]; then
         echo "ERROR: EDK2_SRC=${EDK2_SRC} does not look like an EDK2 checkout" >&2
         exit 1
     fi
@@ -131,14 +132,23 @@ if [[ "${SKIP_REBUILD}" != "true" ]]; then
         log "Found existing OVMF tarball and OVMF.fd"
         pause "Rebuild OVMF? (Ctrl-C to skip and use existing)"
     fi
-    (
-        cd "${EDK2_SRC}"
-        git submodule update --init || true
-    )
+    mkdir -p "${OVMF_BUILD_DIR}/builddir" "${OVMF_BUILD_DIR}/destdir"
+    if [[ -n "${EDK2_SRC}" ]]; then
+        (
+            cd "${EDK2_SRC}"
+            git submodule update --init || true
+        )
+        log "Building OVMF from local EDK2 checkout: ${EDK2_SRC}"
+    else
+        log "Downloading pinned EDK2 source from rongxinzy/edk2"
+    fi
     (
         cd "${KATA_SRC}/tools/packaging/static-build/ovmf"
         export PATH="/root/go/bin:${PATH}"
-        OVMF_LOCAL_DIR="${EDK2_SRC}" ./build.sh
+        DESTDIR="${OVMF_BUILD_DIR}/destdir" \
+            ovmf_tarball_dir="${OVMF_BUILD_DIR}/builddir" \
+            OVMF_LOCAL_DIR="${EDK2_SRC}" \
+            ./build.sh
     )
     log "OVMF tarball ready: ${OVMF_TARBALL}"
 

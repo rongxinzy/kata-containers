@@ -31,3 +31,4 @@ jobs:
       AZ_SUBSCRIPTION_ID: ${{ secrets.AZ_SUBSCRIPTION_ID }}
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}

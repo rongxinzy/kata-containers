@@ -25,6 +25,7 @@ jobs:
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-assets-arm64:
     permissions:
@@ -40,6 +41,7 @@ jobs:
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-assets-s390x:
     permissions:
@@ -55,6 +57,7 @@ jobs:
     secrets:
       CI_HKD_PATH: ${{ secrets.CI_HKD_PATH }}
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-assets-ppc64le:
     permissions:
@@ -67,6 +70,7 @@ jobs:
       target-branch: ${{ github.ref_name }}
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   publish-kata-deploy-payload-amd64:
     needs: build-assets-amd64
