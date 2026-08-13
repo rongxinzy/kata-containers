@@ -30,6 +30,7 @@ import (
 	"github.com/pbnjay/memory"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newQemuConfig() HypervisorConfig {
@@ -525,6 +526,19 @@ func TestQemuQemuPath(t *testing.T) {
 	path, err = q.qemuPath()
 	assert.NoError(err)
 	assert.Equal(path, expectedPath)
+}
+
+func TestQemuDataDir(t *testing.T) {
+	root := t.TempDir()
+	qemuPath := filepath.Join(root, "bin", "qemu-system-x86_64")
+	dataDir := filepath.Join(root, "share", "kata-qemu", "qemu")
+
+	require.NoError(t, os.MkdirAll(dataDir, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(qemuPath), 0o755))
+	require.NoError(t, os.WriteFile(qemuPath, nil, 0o755))
+
+	q := &qemu{config: HypervisorConfig{HypervisorPath: qemuPath}}
+	assert.Equal(t, dataDir, q.qemuDataDir())
 }
 
 func TestHotplugUnsupportedDeviceType(t *testing.T) {
