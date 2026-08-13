@@ -42,7 +42,11 @@ esac
 # - rootfs-image-nvidia-gpu
 # - rootfs-image-nvidia-gpu-confidential
 #
-root_hash_dir="${repo_root_dir}/tools/packaging/kata-deploy/local-build/build"
+# install_shimv2() extracts the manifests next to the shim-v2 workdir.  Do
+# not read the top-level cache directory: it may contain stale manifests from
+# a prior cached build and, more importantly, is not the input used for this
+# shim build.
+root_hash_dir="${repo_root_dir}/tools/packaging/kata-deploy/local-build/build/shim-v2"
 verity_variants=(
 	"confidential:KERNELVERITYPARAMS"
 	"nvidia-gpu:KERNELVERITYPARAMS_NV"
