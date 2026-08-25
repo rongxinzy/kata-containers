@@ -1083,6 +1083,7 @@ func (k *kataAgent) constrainGRPCSpec(grpcSpec *grpc.Spec, passSeccomp bool, dis
 		switch ns.Type {
 		case string(specs.CgroupNamespace):
 		case string(specs.NetworkNamespace):
+		case string(specs.TimeNamespace):
 		default:
 			ns.Path = ""
 			tmpNamespaces = append(tmpNamespaces, ns)
