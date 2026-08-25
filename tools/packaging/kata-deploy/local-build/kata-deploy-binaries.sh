@@ -1050,7 +1050,7 @@ install_ovmf() {
 		"${final_tarball_path}" \
 		&& return 0
 
-	DESTDIR="${destdir}" PREFIX="${prefix}" OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR:-/home/bingo/kata-ovmf/edk2}" ovmf_tarball_dir="${builddir}" ovmf_build="${ovmf_type}" "${ovmf_builder}"
+	DESTDIR="${destdir}" PREFIX="${prefix}" OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR:-}" ovmf_tarball_dir="${builddir}" ovmf_build="${ovmf_type}" "${ovmf_builder}"
 	tar --zstd -xvf "${builddir}/${tarball_name}" -C "${destdir}"
 }
 

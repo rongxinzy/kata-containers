@@ -20,7 +20,7 @@ spec:
           set -e
           apt update && apt install -y curl
           curl http://127.0.0.1:8006/cdh/resource/default/aa/key
-          nvidia-smi conf-compute -grs
+          dx-smi conf-compute -grs
           sleep 1000
       readinessProbe:
         exec:

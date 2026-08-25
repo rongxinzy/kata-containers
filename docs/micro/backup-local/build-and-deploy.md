@@ -260,7 +260,7 @@ ssh root@${TARGET_HOST} "
         --device=/dev/vfio/139 -m 4g \
         --env NVIDIA_VISIBLE_DEVICES=void \
         --env NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-        --entrypoint nvidia-smi \
+        --entrypoint dx-smi \
         docker.io/vllm/vllm-openai:latest -L
 "
 # 预期: 显示 1 张 RTX 4060

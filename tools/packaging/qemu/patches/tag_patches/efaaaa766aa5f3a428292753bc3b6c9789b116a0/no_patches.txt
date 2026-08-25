@@ -1,0 +1,1 @@
+VFIO fixed-BAR support is provided by the pinned rongxinzy/qemu source.

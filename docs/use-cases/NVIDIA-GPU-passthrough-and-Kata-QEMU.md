@@ -164,6 +164,7 @@ The resulting root filesystem contains the following software components:
 - NVIDIA drivers (kernel modules)
 - NVIDIA user space driver libraries
 - NVIDIA user space tools
+- DONXIN guest commands (`dx-smi`, `lspci`, and `lsmod`)
 - kata-agent
 - confidential computing guest components: the attestation agent,
   confidential data hub and api-server-rest binaries
@@ -181,7 +182,9 @@ process.
 
 NVRC scans for NVIDIA GPUs on the PCI bus, loads the
 NVIDIA kernel modules, waits for driver initialization, creates the device nodes,
-and initializes the GPU hardware (using the `nvidia-smi` binary). NVRC also
+and initializes the GPU hardware. The pinned NVRC release invokes a guest-only
+`nvidia-smi` compatibility name for this initialization; that name is not
+exported to workload containers. NVRC also
 creates the guest-side CDI specification file (using the
 `nvidia-ctk cdi generate` command). This file specifies devices of
 `kind: nvidia.com/gpu`, i.e., GPUs appearing to be physical GPUs on regular
@@ -189,6 +192,12 @@ bare metal systems. The guest CDI specification also contains `containerEdits`
 for each device, specifying device nodes (e.g., `/dev/nvidia0`,
 `/dev/nvidiactl`), library mounts, and environment variables to be mounted
 into the container which receives the passthrough GPU.
+
+The guest wraps CDI generation before the specification is published. It
+replaces the `nvidia-smi` mount with the public `dx-smi` command and injects the
+DONXIN-filtered `lspci` and `lsmod` commands. The original GPU query binary and
+the BusyBox backend remain under `/usr/libexec/donxin` and are implementation
+details rather than user commands.
 
 Then, NVRC forks the Kata agent while continuing to run as the
 init system. This allows NVRC to handle ongoing GPU management tasks

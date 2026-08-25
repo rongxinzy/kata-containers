@@ -87,8 +87,9 @@ assets:
 
     qemu:
       description: "VMM that uses KVM"
-      url: "https://github.com/qemu/qemu"
-      version: "v10.2.1"
+      url: "https://github.com/rongxinzy/qemu"
+      # rongxinzy/qemu v10.2.1 with VFIO fixed-BAR support.
+      version: "efaaaa766aa5f3a428292753bc3b6c9789b116a0"
       tag: "v10.2.1"
       # Do not include any non-full release versions
       # Break the line *without CR or space being appended*, to appease
@@ -399,26 +400,27 @@ externals:
 
   ovmf:
     description: "Firmware, implementation of UEFI for virtual machines."
-    url: "https://github.com/tianocore/edk2"
+    url: "https://github.com/rongxinzy/edk2"
     x86_64:
       description: "Vanilla firmware build"
-      version: "edk2-stable202508"
+      # rongxinzy/edk2 vfio-fixed-bar-programbar-preset.
+      version: "ebce784514d9068def7cd4288d6dc723f40f53ac"
       package: "OvmfPkg/OvmfPkgX64.dsc"
       package_output_dir: "OvmfX64"
     sev:
       # Used by AMD SEV-SNP for measured direct boot
       description: "AmdSev build needed for SEV measured direct boot."
-      version: "edk2-stable202508"
+      version: "ebce784514d9068def7cd4288d6dc723f40f53ac"
       package: "OvmfPkg/AmdSev/AmdSevX64.dsc"
       package_output_dir: "AmdSev"
     tdx:
       description: "UEFI for Intel TDX virtual machines."
-      version: "edk2-stable202511"
+      version: "ebce784514d9068def7cd4288d6dc723f40f53ac"
       package: "OvmfPkg/IntelTdx/IntelTdxX64.dsc"
       package_output_dir: "IntelTdx"
     arm64:
       description: "UEFI for arm64 virtual machines."
-      version: "edk2-stable202508"
+      version: "ebce784514d9068def7cd4288d6dc723f40f53ac"
       package: "ArmVirtPkg/ArmVirtQemu.dsc"
       package_output_dir: "ArmVirtQemu-AARCH64"
     cca:

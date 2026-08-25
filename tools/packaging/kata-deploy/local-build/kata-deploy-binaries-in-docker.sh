@@ -116,14 +116,22 @@ IMAGE_SIZE_ALIGNMENT_MB=${IMAGE_SIZE_ALIGNMENT_MB:-}
 KERNEL_DEBUG_ENABLED="${KERNEL_DEBUG_ENABLED:-}"
 INIT_DATA="${INIT_DATA:-yes}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
-
-OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR:-/home/bingo/kata-ovmf/edk2}"
+SOURCE_REPO_TOKEN="${SOURCE_REPO_TOKEN:-}"
+OVMF_LOCAL_DIR="${OVMF_LOCAL_DIR:-}"
+ovmf_volume_args=()
+if [[ -n "${OVMF_LOCAL_DIR}" ]]; then
+	[[ -d "${OVMF_LOCAL_DIR}" ]] || {
+		echo >&2 "ERROR: OVMF_LOCAL_DIR does not exist: ${OVMF_LOCAL_DIR}"
+		exit 1
+	}
+	ovmf_volume_args=(-v "${OVMF_LOCAL_DIR}:${OVMF_LOCAL_DIR}")
+fi
 
 docker run \
 	-v $HOME/.docker:/root/.docker \
 	-v /var/run/docker.sock:/var/run/docker.sock \
 	-v "${kata_dir}:${kata_dir}" \
-	-v "${OVMF_LOCAL_DIR}:${OVMF_LOCAL_DIR}" \
+	"${ovmf_volume_args[@]}" \
 	--env USER=${USER} \
 	--env ARTEFACT_REGISTRY="${ARTEFACT_REGISTRY}" \
 	--env ARTEFACT_REPOSITORY="${ARTEFACT_REPOSITORY}" \
@@ -152,6 +160,7 @@ docker run \
 	--env NVIDIA_GPU_STACK="${NVIDIA_GPU_STACK}" \
 	--env KBUILD_SIGN_PIN="${KBUILD_SIGN_PIN}" \
 	--env GITHUB_TOKEN="${GITHUB_TOKEN}" \
+	--env SOURCE_REPO_TOKEN="${SOURCE_REPO_TOKEN}" \
 	--env GUEST_HOOKS_TARBALL_NAME="${GUEST_HOOKS_TARBALL_NAME}" \
 	--env EXTRA_PKGS="${EXTRA_PKGS}" \
 	--env REPO_URL="${REPO_URL}" \

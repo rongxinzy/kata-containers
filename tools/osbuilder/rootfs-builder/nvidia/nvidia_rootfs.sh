@@ -220,6 +220,71 @@ chisseled_compute() {
 	ln -s ../bin usr/bin
 }
 
+install_donxin_gpu_commands() {
+	echo "nvidia: installing DONXIN GPU command surface"
+
+	local source_dir="${SCRIPT_DIR}/donxin"
+	local install_dir="usr/libexec/donxin"
+	local compiler="${machine_arch}-linux-musl-gcc"
+
+	command -v "${compiler}" >/dev/null 2>&1 ||
+		die "Static compiler not found: ${compiler}"
+	[[ -x bin/nvidia-smi ]] || die "nvidia-smi is missing before DONXIN integration"
+	[[ -x bin/nvidia-ctk ]] || die "nvidia-ctk is missing before DONXIN integration"
+	[[ -x bin/busybox ]] || die "busybox is missing before DONXIN integration"
+
+	mkdir -p "${install_dir}"
+	mv bin/nvidia-smi "${install_dir}/gpu-query"
+	mv bin/nvidia-ctk "${install_dir}/nvidia-ctk"
+
+	"${compiler}" -static -std=c11 -O2 -Wall -Wextra -Werror \
+		-o bin/dx-smi "${source_dir}/dx-command-proxy.c"
+	"${compiler}" -static -std=c11 -O2 -Wall -Wextra -Werror \
+		-o "${install_dir}/cdi-transform" "${source_dir}/dx-cdi-transform.c"
+
+	cp "${source_dir}/nvidia-ctk-wrapper.sh" bin/nvidia-ctk
+	chmod 0755 bin/dx-smi bin/nvidia-ctk "${install_dir}/cdi-transform"
+
+	# NVRC v0.1.4 has /bin/nvidia-smi hard-coded. This alias stays inside the
+	# guest and is removed from the CDI command surface at boot.
+	ln -s dx-smi bin/nvidia-smi
+	ln -sf dx-smi bin/lspci
+	ln -sf dx-smi bin/lsmod
+	mkdir -p sbin usr/sbin
+	ln -sf ../bin/dx-smi sbin/lspci
+	ln -sf ../bin/dx-smi sbin/lsmod
+	ln -sf ../../bin/dx-smi usr/bin/dx-smi
+	ln -sf ../../bin/dx-smi usr/bin/lspci
+	ln -sf ../../bin/dx-smi usr/bin/lsmod
+	ln -sf ../../bin/dx-smi usr/sbin/lspci
+	ln -sf ../../bin/dx-smi usr/sbin/lsmod
+	ln -s /bin/busybox "${install_dir}/sysbox"
+}
+
+smoke_test_donxin_gpu_commands() {
+	echo "nvidia: smoke testing dx-smi in the final rootfs"
+
+	local output
+	if ! output=$(chroot . /usr/bin/dx-smi --help 2>&1); then
+		echo "${output}" >&2
+		die "dx-smi could not invoke its GPU query backend in the final rootfs"
+	fi
+
+	[[ -n "${output}" ]] || die "dx-smi returned empty help output"
+	if grep -Eq 'NVIDIA|nvidia' <<< "${output}"; then
+		echo "${output}" >&2
+		die "dx-smi exposed an unfiltered NVIDIA name"
+	fi
+	grep -Eq 'DX-SMI|DONXIN|donxin' <<< "${output}" || {
+		echo "${output}" >&2
+		die "dx-smi help output did not contain the DONXIN command surface"
+	}
+
+	printf '%s\n' "${output}" > \
+		"${BUILD_DIR}/dx-smi-${BUILD_VARIANT}.smoke-passed"
+	echo "nvidia: dx-smi final-rootfs smoke test passed"
+}
+
 chisseled_gpudirect() {
 	echo "nvidia: chisseling GPUDirect"
 	echo "nvidia: not implemented yet"
@@ -443,8 +508,15 @@ setup_nvidia_gpu_rootfs_stage_two() {
 		chisseled_nvat
 	fi
 
+	if echo "${stack}" | grep -Eq '(^|,)compute(,|$)'; then
+		install_donxin_gpu_commands
+	fi
+
 	compress_rootfs
 	chroot . ldconfig
+	if echo "${stack}" | grep -Eq '(^|,)compute(,|$)'; then
+		smoke_test_donxin_gpu_commands
+	fi
 
 	popd >> /dev/null
 }

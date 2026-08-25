@@ -29,6 +29,8 @@ on:
         required: true
       KBUILD_SIGN_PIN:
         required: true
+      SOURCE_REPO_TOKEN:
+        required: true
 
 permissions: {}
 
@@ -46,6 +48,7 @@ jobs:
       target-branch: ${{ inputs.target-branch }}
     secrets:
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   publish-kata-deploy-payload-amd64:
     needs: build-kata-static-tarball-amd64

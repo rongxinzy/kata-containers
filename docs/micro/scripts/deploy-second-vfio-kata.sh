@@ -124,7 +124,7 @@ run_remote "
 
 log "Waiting for container to be ready"
 sleep 5
-run_remote "nerdctl exec ${CONTAINER_NAME} nvidia-smi -L"
+run_remote "nerdctl exec ${CONTAINER_NAME} dx-smi -L"
 
 log "Stage: verify fixed-BAR GPA=HPA"
 run_remote "

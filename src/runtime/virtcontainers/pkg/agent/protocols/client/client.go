@@ -321,45 +321,33 @@ func parseGrpcHybridVSockAddr(sock string) (string, uint32, error) {
 // containers boot up speed. For more information, see
 // https://github.com/grpc/grpc/blob/master/doc/connection-backoff.md
 func commonDialer(timeout time.Duration, dialFunc func() (net.Conn, error), timeoutErrMsg error) (net.Conn, error) {
-	t := time.NewTimer(timeout)
-	cancel := make(chan bool)
-	ch := make(chan net.Conn)
-	go func() {
-		for {
-			select {
-			case <-cancel:
-				// canceled or channel closed
-				return
-			default:
-			}
+	// Some failure modes, such as an AF_VSOCK ENODEV while QEMU is exiting,
+	// return immediately. Retrying those calls without a delay spins a shim core
+	// until the agent timeout and hides the actionable error from the caller.
+	const (
+		initialRetryDelay = 10 * time.Millisecond
+		maxRetryDelay     = 250 * time.Millisecond
+	)
 
-			conn, err := dialFunc()
-			if err == nil {
-				// Send conn back iff timer is not fired
-				// Otherwise there might be no one left reading it
-				if t.Stop() {
-					ch <- conn
-				} else {
-					conn.Close()
-				}
-				return
-			}
-		}
-	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
-	var conn net.Conn
-	var ok bool
-	select {
-	case conn, ok = <-ch:
-		if !ok {
-			return nil, timeoutErrMsg
+	retryDelay := initialRetryDelay
+	var lastErr error
+	for {
+		conn, err := dialFunc()
+		if err == nil {
+			return conn, nil
 		}
-	case <-t.C:
-		cancel <- true
-		return nil, timeoutErrMsg
+		lastErr = err
+
+		select {
+		case <-timer.C:
+			return nil, fmt.Errorf("%w: last dial error: %v", timeoutErrMsg, lastErr)
+		case <-time.After(retryDelay):
+			retryDelay = min(retryDelay*2, maxRetryDelay)
+		}
 	}
-
-	return conn, nil
 }
 
 func VsockDialer(sock string, timeout time.Duration) (net.Conn, error) {

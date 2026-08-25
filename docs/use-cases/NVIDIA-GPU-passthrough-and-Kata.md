@@ -312,20 +312,20 @@ As the last step one can remove the additional packages and files that were adde
 to the `$ROOTFS_DIR` to keep it as small as possible.
 
 One has built a NVIDIA rootfs, kernel and now we can run any GPU container
-without installing the drivers into the container. Check NVIDIA device status
-with `nvidia-smi`:
+without installing the drivers into the container. Check device status through
+the DONXIN command surface with `dx-smi`:
 
 ```sh
-$  sudo ctr --debug run --runtime "io.containerd.kata.v2"  --device /dev/vfio/192  --rm -t "docker.io/nvidia/cuda:11.6.0-base-ubuntu20.04" cuda nvidia-smi
+$  sudo ctr --debug run --runtime "io.containerd.kata.v2"  --device /dev/vfio/192  --rm -t "docker.io/nvidia/cuda:11.6.0-base-ubuntu20.04" cuda dx-smi
 Fri Mar 18 10:36:59 2022
 +-----------------------------------------------------------------------------+
-| NVIDIA-SMI 510.54       Driver Version: 510.54       CUDA Version: 11.6     |
+| DX-SMI 510.54           Driver Version: 510.54       cuda Version: 11.6     |
 |-------------------------------+----------------------+----------------------+
 | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
 |                               |                      |               MIG M. |
 |===============================+======================+======================|
-|   0  NVIDIA A30X         Off  | 00000000:02:00.0 Off |                    0 |
+|   0  DONXIN A30X          Off  | 00000000:02:00.0 Off |                    0 |
 | N/A   38C    P0    67W / 230W |      0MiB / 24576MiB |      0%      Default |
 |                               |                      |             Disabled |
 +-------------------------------+----------------------+----------------------+

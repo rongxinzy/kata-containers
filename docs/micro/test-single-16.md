@@ -243,7 +243,7 @@ cat /sys/bus/pci/devices/0000:b8:00.0/resource | sed -n 2p
 ps aux | grep qemu-system | grep -c "pcie-root-port"
 
 # GPU 检测
-nerdctl exec g12 nvidia-smi -L | wc -l  # 预期: 12
+nerdctl exec g12 dx-smi -L | wc -l  # 预期: 12
 ```
 
 ---
@@ -419,11 +419,11 @@ done
 
 ```bash
 # 检查 P2P 能力
-nvidia-smi topo -p2p r -i 0,1   # nvidia-smi topo 简写
+dx-smi topo -p2p r -i 0,1
 # 全部 "OK" → P2P 已启用 (x-nv-gpudirect-clique=0)
 
 # 检查物理拓扑
-nvidia-smi topo -m   # 全部 "PHB" → guest 虚拟 pcie.0 限制
+dx-smi topo -m   # 全部 "PHB" → guest 虚拟 pcie.0 限制
 ```
 
 **NCCL 传输路径诊断**:
@@ -485,7 +485,7 @@ ps -o etime= -p $(pgrep qemu-system)
 
 ### 根因
 
-16 GPU 在 guest 内均位于虚拟 `pcie.0` 总线上，`nvidia-smi topo -m` 显示全部为 PHB。但物理上这些 GPU 同属一个 PCIe switch（`b3:10.0`，上游 `af:01.0`），支持直连 P2P。`x-nv-gpudirect-clique=0` 已启用，`nvidia-smi topo -p2p r` 显示全"OK"。
+16 GPU 在 guest 内均位于虚拟 `pcie.0` 总线上，`dx-smi topo -m` 显示全部为 PHB。但物理上这些 GPU 同属一个 PCIe switch（`b3:10.0`，上游 `af:01.0`），支持直连 P2P。`x-nv-gpudirect-clique=0` 已启用，`dx-smi topo -p2p r` 显示全"OK"。
 
 ### 修复
 

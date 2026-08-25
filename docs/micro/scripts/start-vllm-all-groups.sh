@@ -50,7 +50,7 @@ for gid in ${TARGET_GROUPS}; do
     echo "  [${NAME}] Cleaning up old vLLM processes..."
     nerdctl exec "${NAME}" bash -c '
         pkill -9 -f "vllm serve" 2>/dev/null || true
-        nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+        dx-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | xargs -r kill -9 2>/dev/null || true
     ' 2>/dev/null || true
     sleep 3
 
@@ -66,7 +66,7 @@ for gid in ${TARGET_GROUPS}; do
     echo "  [${NAME}] Cleaning up old vLLM processes..."
     nerdctl exec "${NAME}" bash -c "
         pkill -9 -f \"vllm serve\" 2>/dev/null || true
-        nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+        dx-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | xargs -r kill -9 2>/dev/null || true
     " 2>/dev/null || true
     sleep 3
 

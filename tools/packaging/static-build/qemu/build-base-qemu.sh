@@ -36,9 +36,13 @@ qemu_repo="${qemu_repo:-${1:-}}"
 qemu_version="${qemu_version:-${2:-}}"
 build_suffix="${3:-}"
 qemu_tar="${4:-}"
+SOURCE_REPO_TOKEN="${SOURCE_REPO_TOKEN:-}"
 
 [[ -n "${qemu_repo}" ]] || die "qemu repo not provided"
 [[ -n "${qemu_version}" ]] || die "qemu version not provided"
+if [[ "${qemu_repo}" == "https://github.com/rongxinzy/qemu.git" && -z "${SOURCE_REPO_TOKEN}" ]]; then
+	die "SOURCE_REPO_TOKEN is required to download the private rongxinzy/qemu source"
+fi
 
 info "Build ${qemu_repo} version: ${qemu_version}"
 
@@ -71,6 +75,7 @@ container_image="${QEMU_CONTAINER_BUILDER:-$(get_qemu_image_name)}"
 	--env PKGVERSION="${PKGVERSION}" \
 	--env QEMU_DESTDIR="${qemu_destdir}" \
 	--env QEMU_REPO="${qemu_repo}" \
+	--env SOURCE_REPO_TOKEN="${SOURCE_REPO_TOKEN}" \
 	--env QEMU_TARBALL="${qemu_tar}" \
 	--env PREFIX="${prefix}" \
 	--env HYPERVISOR_NAME="${HYPERVISOR_NAME}" \
@@ -81,4 +86,3 @@ container_image="${QEMU_CONTAINER_BUILDER:-$(get_qemu_image_name)}"
 	-v "${repo_root_dir}:${repo_root_dir}" \
 	-v "${PWD}":/share "${container_image}" \
 	bash -c "${qemu_builder}"
-

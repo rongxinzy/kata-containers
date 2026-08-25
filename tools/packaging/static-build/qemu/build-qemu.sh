@@ -16,6 +16,17 @@ PKGVERSION="${PKGVERSION:-}"
 PREFIX="${PREFIX:-}"
 QEMU_DESTDIR="${QEMU_DESTDIR:-}"
 QEMU_TARBALL="${QEMU_TARBALL:-}"
+SOURCE_REPO_TOKEN="${SOURCE_REPO_TOKEN:-}"
+
+git_source() {
+	if [[ -n "${SOURCE_REPO_TOKEN}" ]]; then
+		local encoded_token
+		encoded_token="$(printf 'x-access-token:%s' "${SOURCE_REPO_TOKEN}" | base64 | tr -d '\n')"
+		git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${encoded_token}" "$@"
+	else
+		GIT_TERMINAL_PROMPT=0 git "$@"
+	fi
+}
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -27,9 +38,9 @@ kata_static_build_scripts="${kata_static_build_dir}/scripts"
 
 ARCH=${ARCH:-$(uname -m)}
 
-git clone --depth=1 "${QEMU_REPO}" qemu
+git_source clone --depth=1 "${QEMU_REPO}" qemu
 pushd qemu
-git fetch --depth=1 origin "${QEMU_VERSION_NUM}"
+git_source fetch --depth=1 origin "${QEMU_VERSION_NUM}"
 git checkout FETCH_HEAD
 scripts/git-submodule.sh update meson capstone
 "${kata_packaging_scripts}/patch_qemu.sh" "${QEMU_VERSION_NUM}" "${kata_packaging_dir}/qemu/patches"

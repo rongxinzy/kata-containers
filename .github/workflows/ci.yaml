@@ -47,6 +47,8 @@ on:
         required: true
       KBUILD_SIGN_PIN:
         required: true
+      SOURCE_REPO_TOKEN:
+        required: true
 
 permissions: {}
 
@@ -64,6 +66,7 @@ jobs:
       target-branch: ${{ inputs.target-branch }}
     secrets:
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   publish-kata-deploy-payload-amd64:
     needs: build-kata-static-tarball-amd64
@@ -96,6 +99,7 @@ jobs:
       target-branch: ${{ inputs.target-branch }}
     secrets:
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   publish-kata-deploy-payload-arm64:
     needs: build-kata-static-tarball-arm64
@@ -129,6 +133,7 @@ jobs:
     secrets:
       CI_HKD_PATH: ${{ secrets.ci_hkd_path }}
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   build-kata-static-tarball-ppc64le:
     permissions:
@@ -141,6 +146,7 @@ jobs:
       target-branch: ${{ inputs.target-branch }}
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
+      SOURCE_REPO_TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
 
   publish-kata-deploy-payload-s390x:
     needs: build-kata-static-tarball-s390x

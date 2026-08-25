@@ -328,7 +328,7 @@ nerdctl exec kata-vfio-group6 bash -c "
 
 ```bash
 # 验证 GPU 可见
-nerdctl exec kata-vfio-group1 nvidia-smi -L 2>/dev/null | wc -l   # 预期: 8
+nerdctl exec kata-vfio-group1 dx-smi -L 2>/dev/null | wc -l   # 预期: 8
 
 # 验证 vLLM 端口
 for port in 8006 8008 8009 8010; do

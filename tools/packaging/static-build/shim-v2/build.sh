@@ -42,7 +42,11 @@ esac
 # - rootfs-image-nvidia-gpu
 # - rootfs-image-nvidia-gpu-confidential
 #
-root_hash_dir="${repo_root_dir}/tools/packaging/kata-deploy/local-build/build"
+# install_shimv2() extracts the manifests next to the shim-v2 workdir.  Do
+# not read the top-level cache directory: it may contain stale manifests from
+# a prior cached build and, more importantly, is not the input used for this
+# shim build.
+root_hash_dir="${repo_root_dir}/tools/packaging/kata-deploy/local-build/build/shim-v2"
 verity_variants=(
 	"confidential:KERNELVERITYPARAMS"
 	"nvidia-gpu:KERNELVERITYPARAMS_NV"
@@ -119,6 +123,30 @@ case "${RUNTIME_CHOICE}" in
 			bash -c "make PREFIX="${PREFIX}" DESTDIR="${DESTDIR}" ${EXTRA_OPTS} install"
 		;;
 esac
+
+# The NVIDIA guest kernel receives its dm-verity table from the Go shim at
+# build time.  A rootfs image and a shim from different artifact sets boot far
+# enough to start QEMU, then panic while mounting /dev/dm-0.  Verify that the
+# shim we are about to package contains the root hash for every measured
+# rootfs consumed by this build.
+if [[ "${RUNTIME_CHOICE}" == "go" || "${RUNTIME_CHOICE}" == "both" ]]; then
+	shim_binary="${DESTDIR%/}${PREFIX}/bin/containerd-shim-kata-v2"
+	[[ -x "${shim_binary}" ]] || die "Missing Go shim binary: ${shim_binary}"
+
+	for entry in "${verity_variants[@]}"; do
+		variant="${entry%%:*}"
+		root_hash_file="${root_hash_dir}/root_hash_${variant}.txt"
+		[[ -f "${root_hash_file}" ]] || continue
+
+		IFS= read -r root_measure_config < "${root_hash_file}"
+		root_hash="${root_measure_config#*root_hash=}"
+		root_hash="${root_hash%%,*}"
+		[[ -n "${root_hash}" && "${root_hash}" != "${root_measure_config}" ]] || die "Missing root_hash in ${root_hash_file}"
+
+		strings "${shim_binary}" | grep -Fq "${root_hash}" || \
+			die "${variant} rootfs hash is absent from ${shim_binary}; do not package mismatched shim and rootfs artifacts"
+	done
+fi
 
 for vmm in ${VMM_CONFIGS}; do
 	for config_file in "${DESTDIR}/${PREFIX}/share/defaults/kata-containers/configuration-${vmm}"*.toml; do
