@@ -496,7 +496,10 @@ ifneq (,$(QEMUCMD))
     DEFAULTPCIEROOTPORT_NV = 8
 
     KERNELPARAMS_NV = "cgroup_no_v1=all"
-    KERNELPARAMS_NV += "pci=realloc"
+    # The fixed-BAR QEMU path presets GPU BAR addresses.  Keep the guest
+    # kernel from reallocating them; configuration kernel parameters override
+    # qemu_amd64.go defaults, so this must agree with pci=realloc=off there.
+    KERNELPARAMS_NV += "pci=realloc=off"
     KERNELPARAMS_NV += "pci=nocrs"
     KERNELPARAMS_NV += "pci=assign-busses"
 
