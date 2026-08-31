@@ -389,7 +389,9 @@ func groupVFIODevicesByIOMMU(vfioDevs []*config.VFIODev) []*config.VFIODev {
 	// (class 0x03xx).  If none is found, keep the first device as primary.
 	primaryIdx := 0
 	for i, dev := range vfioDevs {
-		if strings.HasPrefix(dev.Class, "03") {
+		// PCI classes read from sysfs are formatted as, for example,
+		// "0x030000". Accept that form as well as a bare class code.
+		if strings.HasPrefix(strings.TrimPrefix(strings.ToLower(dev.Class), "0x"), "03") {
 			primaryIdx = i
 			break
 		}

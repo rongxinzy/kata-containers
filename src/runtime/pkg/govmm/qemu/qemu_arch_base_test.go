@@ -21,6 +21,7 @@ var (
 	devicePCIeRootPortFullString   = "-device pcie-root-port,id=rp2,bus=pcie.0,chassis=0x0,slot=0x1,addr=0x2,multifunction=on,bus-reserve=0x3,pref64-reserve=16G,mem-reserve=1G,io-reserve=512M,romfile=efi-virtio.rom"
 	deviceVFIOPCIeSimpleString     = "-device vfio-pci,host=02:00.0,x-fixed-bars=on,x-fixed-bars-allow-32bit-fallback=on,bus=rp0"
 	deviceVFIOPCIeFullString       = "-device vfio-pci,host=02:00.0,x-fixed-bars=on,x-fixed-bars-allow-32bit-fallback=on,x-pci-vendor-id=0x10de,x-pci-device-id=0x15f8,romfile=efi-virtio.rom,bus=rp1"
+	deviceVFIOGPUString            = "-device vfio-pci,host=02:00.0,x-fixed-bars=on,x-fixed-bars-allow-32bit-fallback=on,x-pci-vendor-id=0x10de,x-pci-device-id=0x15f8,x-nv-gpudirect-clique=0,display=off,rombar=0,bus=pcie.0,addr=f,multifunction=on"
 	deviceSCSIControllerStr        = "-device virtio-scsi-pci,id=foo,disable-modern=false,romfile=efi-virtio.rom"
 	deviceSCSIControllerBusAddrStr = "-device virtio-scsi-pci,id=foo,bus=pci.0,addr=00:04.0,disable-modern=true,iothread=iothread1,romfile=efi-virtio.rom"
 	deviceVhostUserSCSIString      = "-chardev socket,id=char1,path=/tmp/nonexistentsocket.socket -device vhost-user-scsi-pci,id=scsi1,chardev=char1,romfile=efi-virtio.rom"
@@ -211,4 +212,18 @@ func TestAppendDeviceVFIOPCIe(t *testing.T) {
 		DeviceID: "0x15f8",
 	}
 	testAppend(vfioDevice, deviceVFIOPCIeFullString, t)
+
+	// NVIDIA GPU fixed-BAR and GPUDirect settings used by the Kata runtime.
+	vfioDevice = VFIODevice{
+		BDF:             "02:00.0",
+		Bus:             "pcie.0",
+		Addr:            "f",
+		Multifunction:   true,
+		VendorID:        "0x10de",
+		DeviceID:        "0x15f8",
+		GPUDirectClique: "0",
+		DisplayOff:      true,
+		ROMBarZero:      true,
+	}
+	testAppend(vfioDevice, deviceVFIOGPUString, t)
 }

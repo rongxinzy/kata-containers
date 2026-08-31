@@ -48,3 +48,17 @@ func TestGetVFIODetails(t *testing.T) {
 	}
 
 }
+
+func TestGroupVFIODevicesByIOMMUPrefersSysfsGPUClass(t *testing.T) {
+	audio := &config.VFIODev{BDF: "0000:01:00.1", Class: "0x040300"}
+	gpu := &config.VFIODev{BDF: "0000:02:00.0", Class: "0x030000"}
+	usb := &config.VFIODev{BDF: "0000:03:00.0", Class: "0x0c0330"}
+
+	grouped := groupVFIODevicesByIOMMU([]*config.VFIODev{audio, gpu, usb})
+
+	assert.Equal(t, []*config.VFIODev{gpu, audio, usb}, grouped)
+	assert.True(t, gpu.IsMultifunction)
+	assert.Equal(t, uint8(0), gpu.Function)
+	assert.Equal(t, uint8(1), audio.Function)
+	assert.Equal(t, uint8(2), usb.Function)
+}
